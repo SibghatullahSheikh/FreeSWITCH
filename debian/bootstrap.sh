@@ -8,12 +8,51 @@ fs_description="FreeSWITCH is a scalable open source cross-platform telephony pl
 mod_build_depends="."
 supported_distros="squeeze wheezy sid"
 avoid_mods=(
+  applications/mod_abstraction
+  applications/mod_avmd
+  applications/mod_blacklist
+  applications/mod_callcenter
+  applications/mod_cluechoo
+  applications/mod_db
+  applications/mod_distributor
+  applications/mod_dptools
+  applications/mod_easyroute
+  applications/mod_esf
+  applications/mod_esl
+  applications/mod_fsk
+  applications/mod_fsv
+  applications/mod_httapi
+  applications/mod_http_cache
+  applications/mod_ladspa
+  applications/mod_lcr
+  applications/mod_memcache
+  applications/mod_nibblebill
+  applications/mod_oreka
+  applications/mod_random
+  applications/mod_redis
+  applications/mod_rss
+  applications/mod_sms
+  applications/mod_snapshot
+  applications/mod_snipe_hunt
+  applications/mod_snom
+  applications/mod_sonar
+  applications/mod_soundtouch
+  applications/mod_spandsp
+  applications/mod_stress
+  applications/mod_valet_parking
+  applications/mod_vmd
+  applications/mod_voicemail
+  applications/mod_voicemail_ivr
   applications/mod_limit
   applications/mod_mongo
   applications/mod_mp4
   applications/mod_osp
   applications/mod_rad_auth
   applications/mod_skel
+  asr_tts/mod_flite
+  asr_tts/mod_pocketsphinx
+  asr_tts/mod_tts_commandline
+  asr_tts/mod_unimrcp
   asr_tts/mod_cepstral
   codecs/mod_com_g729
   codecs/mod_ilbc
@@ -21,13 +60,18 @@ avoid_mods=(
   codecs/mod_siren
   codecs/mod_skel_codec
   codecs/mod_voipcodecs
+  directories/mod_ldap
   endpoints/mod_gsmopen
   endpoints/mod_h323
   endpoints/mod_khomp
   endpoints/mod_opal
   endpoints/mod_reference
   endpoints/mod_unicall
-  formats/mod_shout
+  formats/mod_vlc
+  languages/mod_java
+  languages/mod_perl
+  languages/mod_python
+  languages/mod_yaml
   languages/mod_managed
   languages/mod_spidermonkey
   sdk/autotools
