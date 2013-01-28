@@ -1,3 +1,9 @@
+freeswitch (1.2.5.3-1bigbluebutton1) lucid; urgency=low
+
+  * BigBlueButton build of freeswitch
+
+ -- Calvin Walton <calvin.walton@kepstin.ca>  Mon, 28 Jan 2013 16:01:05 -0500
+
 freeswitch (1.2~rc2-1) unstable; urgency=low
 
   * Bump version.
