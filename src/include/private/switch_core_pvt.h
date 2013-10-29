@@ -99,7 +99,8 @@ typedef enum {
 	SSF_WRITE_TRANSCODE = (1 << 6),
 	SSF_READ_CODEC_RESET = (1 << 7),
 	SSF_WRITE_CODEC_RESET = (1 << 8),
-	SSF_DESTROYABLE = (1 << 9)
+	SSF_DESTROYABLE = (1 << 9),
+	SSF_MEDIA_BUG_TAP_ONLY = (1 << 10)
 } switch_session_flag_t;
 
 
@@ -175,6 +176,8 @@ struct switch_core_session {
 	plc_state_t *plc;
 	uint8_t recur_buffer[SWITCH_RECOMMENDED_BUFFER_SIZE];
 	switch_size_t recur_buffer_len;
+
+	switch_media_handle_t *media_handle;
 };
 
 struct switch_media_bug {
@@ -184,6 +187,8 @@ struct switch_media_bug {
 	switch_frame_t *read_replace_frame_out;
 	switch_frame_t *write_replace_frame_in;
 	switch_frame_t *write_replace_frame_out;
+	switch_frame_t *native_read_frame;
+	switch_frame_t *native_write_frame;
 	switch_media_bug_callback_t callback;
 	switch_mutex_t *read_mutex;
 	switch_mutex_t *write_mutex;
@@ -214,8 +219,6 @@ typedef enum {
 
 struct switch_runtime {
 	switch_time_t initiated;
-	switch_time_t mono_initiated;
-	switch_time_t mono_reference;
 	switch_time_t reference;
 	int64_t offset;
 	switch_event_t *global_vars;

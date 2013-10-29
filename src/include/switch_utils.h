@@ -40,8 +40,175 @@
 
 #include <switch.h>
 
-SWITCH_BEGIN_EXTERN_C SWITCH_DECLARE(int) switch_toupper(int c);
-SWITCH_DECLARE(int) switch_tolower(int c);
+SWITCH_BEGIN_EXTERN_C 
+
+/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii 
+   http://www.azillionmonkeys.com/qed/asmexample.html
+*/
+static inline uint32_t switch_toupper(uint32_t eax)
+{
+uint32_t ebx = (0x7f7f7f7ful & eax) + 0x05050505ul;
+ebx = (0x7f7f7f7ful & ebx) + 0x1a1a1a1aul;
+ ebx = ((ebx & ~eax) >> 2 ) & 0x20202020ul;
+ return eax - ebx;
+}
+
+/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii 
+   http://www.azillionmonkeys.com/qed/asmexample.html
+*/
+static inline uint32_t switch_tolower(uint32_t eax)
+{
+	uint32_t ebx = (0x7f7f7f7ful & eax) + 0x25252525ul;
+	ebx = (0x7f7f7f7ful & ebx) + 0x1a1a1a1aul;
+	ebx = ((ebx & ~eax) >> 2)  & 0x20202020ul;
+	return eax + ebx;
+}
+
+
+#ifdef FS_64BIT
+
+/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii 
+   http://www.azillionmonkeys.com/qed/asmexample.html
+*/
+static inline uint64_t switch_toupper64(uint64_t eax)
+{
+uint64_t ebx = (0x7f7f7f7f7f7f7f7full & eax) + 0x0505050505050505ull;
+ ebx = (0x7f7f7f7f7f7f7f7full & ebx) + 0x1a1a1a1a1a1a1a1aull;
+ ebx = ((ebx & ~eax) >> 2 ) & 0x2020202020202020ull;
+ return eax - ebx;
+}
+
+/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii 
+   http://www.azillionmonkeys.com/qed/asmexample.html
+*/
+static inline uint64_t switch_tolower64(uint64_t eax)
+{
+	uint64_t ebx = (0x7f7f7f7f7f7f7f7full & eax) + 0x2525252525252525ull;
+	ebx = (0x7f7f7f7f7f7f7f7full & ebx) + 0x1a1a1a1a1a1a1a1aull;
+	ebx = ((ebx & ~eax) >> 2)  & 0x2020202020202020ull;
+	return eax + ebx;
+}
+
+static inline void switch_toupper_max(char *s)
+{
+	uint64_t *b,*p;
+	char *c;
+	size_t l;
+
+	l = strlen(s);
+
+	p = (uint64_t *) s;
+
+	while (l > 8) {
+		b = p;
+		*b = (uint64_t) switch_toupper64(*b);
+		b++;
+		p++;
+		l -= 8;
+	}
+
+	c = (char *)p;
+
+	while(l > 0) {
+		*c = (char) switch_toupper(*c);
+		c++;
+		l--;
+	}
+
+}
+
+static inline void switch_tolower_max(char *s)
+{
+	uint64_t *b,*p;
+	char *c;
+	size_t l;
+
+	l = strlen(s);
+
+	p = (uint64_t *) s;
+
+	while (l > 8) {
+		b = p;
+		*b = (uint64_t) switch_tolower64(*b);
+		b++;
+		p++;
+		l -= 8;
+	}
+
+	c = (char *)p;
+
+	while(l > 0) {
+		*c = (char) switch_tolower(*c);
+		c++;
+		l--;
+	}
+
+}
+
+#else 
+
+static inline void switch_toupper_max(char *s)
+{
+	uint32_t *b,*p;
+	char *c;
+	size_t l;
+
+	l = strlen(s);
+
+	p = (uint32_t *) s;
+
+	while (l > 4) {
+		b = p;
+		*b = (uint32_t) switch_toupper(*b);
+		b++;
+		p++;
+		l -= 4;
+	}
+
+	c = (char *)p;
+
+	while(l > 0) {
+		*c = (char) switch_toupper(*c);
+		c++;
+		l--;
+	}
+	
+}
+
+static inline void switch_tolower_max(char *s)
+{
+	uint32_t *b,*p;
+	char *c;
+	size_t l;
+
+	l = strlen(s);
+
+	p = (uint32_t *) s;
+
+	while (l > 4) {
+		b = p;
+		*b = (uint32_t) switch_tolower(*b);
+		b++;
+		p++;
+		l -= 4;
+	}
+
+	c = (char *)p;
+
+	while(l > 0) {
+		*c = (char) switch_tolower(*c);
+		c++;
+		l--;
+	}
+	
+}
+#endif
+
+
+
+
+SWITCH_DECLARE(int) old_switch_toupper(int c);
+SWITCH_DECLARE(int) old_switch_tolower(int c);
 SWITCH_DECLARE(int) switch_isalnum(int c);
 SWITCH_DECLARE(int) switch_isalpha(int c);
 SWITCH_DECLARE(int) switch_iscntrl(int c);
@@ -60,6 +227,9 @@ typedef union{
 } ip_t;
 
 SWITCH_DECLARE(switch_bool_t) switch_testv6_subnet(ip_t _ip, ip_t _net, ip_t _mask);
+
+
+SWITCH_DECLARE(char *) switch_print_host(switch_sockaddr_t *addr, char *buf, switch_size_t len);
 
 #define switch_goto_status(_status, _label) status = _status; goto _label
 #define switch_goto_int(_n, _i, _label) _n = _i; goto _label
@@ -98,6 +268,10 @@ static inline switch_bool_t switch_is_moh(const char *s)
 	}
 	return SWITCH_TRUE;
 }
+
+
+#define zset(_a, _b) if (!zstr(_b)) _a = _b
+
 
 /* find a character (find) in a string (in) and return a pointer to that point in the string where the character was found 
    using the array (allowed) as allowed non-matching characters, when (allowed) is NULL, behaviour should be identical to strchr()
@@ -248,14 +422,15 @@ SWITCH_DECLARE(char *) switch_find_parameter(const char *str, const char *param,
   \param expr a string expression
   \return true or false 
 */
-static inline int switch_true(const char *expr) 
+static inline int switch_true(const char *expr)
 {
-	return ((expr && ( !strcasecmp(expr, "yes") ||	
-					   !strcasecmp(expr, "on") ||	
-					   !strcasecmp(expr, "true") ||	
-					   !strcasecmp(expr, "enabled") ||	
-					   !strcasecmp(expr, "active") ||	
-					   !strcasecmp(expr, "allow") ||					
+	return ((expr && ( !strcasecmp(expr, "yes") ||
+					   !strcasecmp(expr, "on") ||
+					   !strcasecmp(expr, "true") ||
+					   !strcasecmp(expr, "t") ||
+					   !strcasecmp(expr, "enabled") ||
+					   !strcasecmp(expr, "active") ||
+					   !strcasecmp(expr, "allow") ||
 					   (switch_is_number(expr) && atoi(expr)))) ? SWITCH_TRUE : SWITCH_FALSE);
 }
 
@@ -263,6 +438,7 @@ static inline int switch_true(const char *expr)
 ((( !strcasecmp(expr, "yes") ||\
 !strcasecmp(expr, "on") ||\
 !strcasecmp(expr, "true") ||\
+!strcasecmp(expr, "t") ||\
 !strcasecmp(expr, "enabled") ||\
 !strcasecmp(expr, "active") ||\
 !strcasecmp(expr, "allow") ||\
@@ -278,6 +454,7 @@ static inline int switch_false(const char *expr)
 	return ((expr && ( !strcasecmp(expr, "no") ||
 					   !strcasecmp(expr, "off") ||
 					   !strcasecmp(expr, "false") ||
+					   !strcasecmp(expr, "f") ||
 					   !strcasecmp(expr, "disabled") ||
 					   !strcasecmp(expr, "inactive") ||
 					   !strcasecmp(expr, "disallow") ||
@@ -430,12 +607,15 @@ static inline char *switch_sanitize_number(char *number)
 
 	switch_assert(number);
 
-	if (!(strchr(p, '/') || strchr(p, ':') || strchr(p, '@'))) {
+	if (!(strchr(p, '/') || strchr(p, ':') || strchr(p, '@') || strchr(p, '%'))) {
 		return number;
 	}
 
 	while ((q = strrchr(p, '@')))
 		*q = '\0';
+	
+	while ((q = strrchr(p, '%')))
+			*q = '\0';
 
 	for (i = 0; i < (int) strlen(warp); i++) {
 		while (p && (q = strchr(p, warp[i])))
@@ -731,13 +911,23 @@ SWITCH_DECLARE(const char *) switch_cut_path(const char *in);
 
 SWITCH_DECLARE(char *) switch_string_replace(const char *string, const char *search, const char *replace);
 SWITCH_DECLARE(switch_status_t) switch_string_match(const char *string, size_t string_len, const char *search, size_t search_len);
+SWITCH_DECLARE(int) switch_strcasecmp_any(const char *str, ...);
 
 /*!
   \brief Quote shell argument
   \param string the string to quote (example: a ' b"' c)
-  \return the quoted string (gives: 'a '\'' b"'\'' c' for unices, "a ' b ' c" for MS Windows)
+  \return the quoted string (gives: 'a '\'' b"'\'' c' for unices, "a ' b ' c" for MS Windows), should be freed
 */
 SWITCH_DECLARE(char *) switch_util_quote_shell_arg(const char *string);
+
+/*!
+  \brief Quote shell argument, allocating from pool if provided
+  \param string the string to quote (example: a ' b"' c)
+  \param pool a memory pool to use
+  \return the quoted string (gives: 'a '\'' b"'\'' c' for unices, "a ' b ' c" for MS Windows), if pool not provided, returned value should be freed
+*/
+SWITCH_DECLARE(char *) switch_util_quote_shell_arg_pool(const char *string, switch_memory_pool_t *pool);
+
 
 #define SWITCH_READ_ACCEPTABLE(status) (status == SWITCH_STATUS_SUCCESS || status == SWITCH_STATUS_BREAK)
 SWITCH_DECLARE(char *) switch_url_encode(const char *url, char *buf, size_t len);
@@ -752,11 +942,19 @@ SWITCH_DECLARE(char *) switch_find_end_paren(const char *s, char open, char clos
 	 static inline switch_bool_t switch_is_file_path(const char *file)
 {
 	const char *e;
-	int r;
+	int r, x;
 
-	if (*file == '[' && *(file + 1) == *SWITCH_PATH_SEPARATOR) {
-		if ((e = switch_find_end_paren(file, '[', ']'))) {
-			file = e + 1;
+	for (x = 0; x < 2; x++) {
+		if (*file == '[' && *(file + 1) == *SWITCH_PATH_SEPARATOR) {
+			if ((e = switch_find_end_paren(file, '[', ']'))) {
+				file = e + 1;
+			}
+		} else if (*file == '{') {
+			if ((e = switch_find_end_paren(file, '{', '}'))) {
+				file = e + 1;
+			}
+		} else {
+			break;
 		}
 	}
 #ifdef WIN32
@@ -858,5 +1056,5 @@ SWITCH_END_EXTERN_C
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

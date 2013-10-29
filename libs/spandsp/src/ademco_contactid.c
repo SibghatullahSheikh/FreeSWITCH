@@ -84,7 +84,7 @@ Receiver now waits
 
 Sender waits 250-300ms after end of 2300Hz tone
 
-Send ACCT MT QXYZ GG CCC
+Send ACCT MT QXYZ GG CCC S
 
 ACCT = 4 digit account code (0-9, B-F)
 MT = 2 digit message type (18 preferred, 98 optional)
@@ -124,6 +124,74 @@ If kissoff doesn't start within 1.25s of the end of the DTMF, repeat the DTMF me
 Receiver sends 750-1000ms of 1400Hz as the kissoff tone
 
 Sender shall make 4 attempts before giving up. One successful kissoff resets the attempt counter
+
+
+Ademco Express 4/1
+
+    ACCT MT C
+
+ACCT = 4 digit account code (0-9, B-F)
+MT = 2 digit message type (17)
+C = alarm code
+S = 1 digit hex checksum
+
+Ademco Express 4/2
+
+    ACCT MT C Z S
+
+ACCT = 4 digit account code (0-9, B-F)
+MT = 2 digit message type (27)
+C = 1 digit alarm code
+Z = 1 digit zone or user number
+S = 1 digit hex checksum
+
+Ademco High speed
+
+    ACCT MT PPPPPPPP X S
+
+ACCT = 4 digit account code (0-9, B-F)
+MT = 2 digit message type (55)
+PPPPPPPP = 8 digit status of each zone
+X = 1 digit type of information in the PPPPPPPP field
+S = 1 digit hex checksum
+
+Each P digit contains one of the following values:
+        1  new alarm
+        2  new opening
+        3  new restore
+        4  new closing
+        5  normal
+        6  outstanding
+The X field contains one of the following values:
+        0  AlarmNet messages
+        1  ambush or duress
+        2  opening by user (the first P field contains the user number)
+        3  bypass (the P fields indicate which zones are bypassed)
+        4  closing by user (the first P field contain the user number)
+        5  trouble (the P fields contain which zones are in trouble)
+        6  system trouble
+        7  normal message (the P fields indicate zone status)
+        8  low battery (the P fields indicate zone status)
+        9  test (the P fields indicate zone status)
+
+Ademco Super fast
+
+    ACCT MT PPPPPPPP X S
+
+ACCT = 4 digit account code (0-9, B-F)
+MT = 2 digit message type (56)
+
+There are versions somewhat like the above, with 8, 16 or 24 'P' digits,
+and no message type
+    ACCT PPPPPPPP X
+    ACCT PPPPPPPPPPPPPPPP X
+    ACCT PPPPPPPPPPPPPPPPPPPPPPPP X
+
+ACCT = 4 digit account code (0-9, B-F)
+PPPPPPPP = 8, 16 or 24 digit status of each zone
+X = 1 digit status of the communicator
+S = 1 digit hex checksum
+
 */
 
 struct ademco_code_s
@@ -369,18 +437,17 @@ static const struct ademco_code_s ademco_codes[] =
     {-1,    "???"}
 };
 
+#define GOERTZEL_SAMPLES_PER_BLOCK  55              /* We need to detect over a +-5% range */
+
 #if defined(SPANDSP_USE_FIXED_POINT)
-#define GOERTZEL_SAMPLES_PER_BLOCK  55              /* We need to detect over a +-5% range */
-#define DETECTION_THRESHOLD         16439           /* -42dBm0 [((GOERTZEL_SAMPLES_PER_BLOCK*GOERTZEL_SAMPLES_PER_BLOCK*32768.0/(1.4142*128.0))*10^((-42 - DBM0_MAX_SINE_POWER)/20.0))^2] */
-#define TONE_TWIST                  4               /* 6dB */
-#define TONE_TO_TOTAL_ENERGY        64              /* -3dB */
+#define DETECTION_THRESHOLD         3035            /* -42dBm0 */
+#define TONE_TO_TOTAL_ENERGY        45.2233f        /* -0.85dB */
 #else
-#define GOERTZEL_SAMPLES_PER_BLOCK  55              /* We need to detect over a +-5% range */
-#define DETECTION_THRESHOLD         2104205.6f      /* -42dBm0 [((GOERTZEL_SAMPLES_PER_BLOCK*GOERTZEL_SAMPLES_PER_BLOCK*32768.0/1.4142)*10^((-42 - DBM0_MAX_SINE_POWER)/20.0))^2] */
-#define TONE_TWIST                  3.981f          /* 6dB */
-#define TONE_TO_TOTAL_ENERGY        1.995f          /* 3dB */
+#define DETECTION_THRESHOLD         49728296.6f     /* -42dBm0 [((GOERTZEL_SAMPLES_PER_BLOCK*32768.0/1.4142)*10^((-42 - DBM0_MAX_SINE_POWER)/20.0))^2] */
+#define TONE_TO_TOTAL_ENERGY        45.2233f        /* -0.85dB [GOERTZEL_SAMPLES_PER_BLOCK*10^(-0.85/10.0)] */
 #endif
 
+static int tone_rx_init = FALSE;
 static goertzel_descriptor_t tone_1400_desc;
 static goertzel_descriptor_t tone_2300_desc;
 
@@ -1015,8 +1082,6 @@ SPAN_DECLARE(ademco_contactid_sender_state_t *) ademco_contactid_sender_init(ade
                                                                              tone_report_func_t callback,
                                                                              void *user_data)
 {
-    static int initialised = FALSE;
-
     if (s == NULL)
     {
         if ((s = (ademco_contactid_sender_state_t *) malloc(sizeof (*s))) == NULL)
@@ -1026,10 +1091,11 @@ SPAN_DECLARE(ademco_contactid_sender_state_t *) ademco_contactid_sender_init(ade
     span_log_init(&s->logging, SPAN_LOG_NONE, NULL);
     span_log_set_protocol(&s->logging, "Ademco");
 
-    if (!initialised)
+    if (!tone_rx_init)
     {
         make_goertzel_descriptor(&tone_1400_desc, 1400.0f, GOERTZEL_SAMPLES_PER_BLOCK);
         make_goertzel_descriptor(&tone_2300_desc, 2300.0f, GOERTZEL_SAMPLES_PER_BLOCK);
+        tone_rx_init = TRUE;
     }
     goertzel_init(&s->tone_1400, &tone_1400_desc);
     goertzel_init(&s->tone_2300, &tone_2300_desc);
@@ -1040,7 +1106,7 @@ SPAN_DECLARE(ademco_contactid_sender_state_t *) ademco_contactid_sender_init(ade
 
     s->step = 0;
     s->remaining_samples = ms_to_samples(100);
-    dtmf_tx_init(&s->dtmf);
+    dtmf_tx_init(&s->dtmf, NULL, NULL);
     /* The specified timing is 50-60ms on, 50-60ms off */
     dtmf_tx_set_timing(&s->dtmf, 55, 55);
     return s;

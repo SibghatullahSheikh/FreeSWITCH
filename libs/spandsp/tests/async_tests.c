@@ -38,9 +38,7 @@
 #include <string.h>
 #include <sndfile.h>
 
-//#if defined(WITH_SPANDSP_INTERNALS)
 #define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
 
 #include "spandsp.h"
 
@@ -61,49 +59,47 @@ int v14_test_async_tx_get_bit(void *user_data)
 {
     async_tx_state_t *s;
     int bit;
+    int parity_bit;
     static int destuff = 0;
-    
+
     /* Special routine to test V.14 rate adaption, by randomly skipping
        stop bits. */
     s = (async_tx_state_t *) user_data;
     if (s->bitpos == 0)
     {
+        s->byte_in_progress = s->get_byte(s->user_data);
+        s->byte_in_progress &= (0xFFFF >> (16 - s->data_bits));
+        if (s->parity)
+        {
+            parity_bit = parity8(s->byte_in_progress);
+            if (s->parity == ASYNC_PARITY_ODD)
+                parity_bit ^= 1;
+            s->byte_in_progress |= (parity_bit << s->data_bits);
+            s->byte_in_progress |= (0xFFFF << (s->data_bits + 1));
+        }
+        else
+        {
+            s->byte_in_progress |= (0xFFFF << s->data_bits);
+        }
         /* Start bit */
         bit = 0;
-        s->byte_in_progress = s->get_byte(s->user_data);
-        s->parity_bit = 0;
         s->bitpos++;
-    }
-    else if (s->bitpos <= s->data_bits)
-    {
-        bit = s->byte_in_progress & 1;
-        s->byte_in_progress >>= 1;
-        s->parity_bit ^= bit;
-        s->bitpos++;
-        if (!s->parity  &&  s->bitpos == s->data_bits + 1)
-        {
-            /* Drop the stop bit on every fourth character for V.14 simulation*/
-            if ((++destuff & 3) == 0)
-                s->bitpos = 0;
-        }
-    }
-    else if (s->parity  &&  s->bitpos == s->data_bits + 1)
-    {
-        if (s->parity == ASYNC_PARITY_ODD)
-            s->parity_bit ^= 1;
-        bit = s->parity_bit;
-        s->bitpos++;
-        /* Drop the stop bit on every fourth character for V.14 simulation */
-        if ((++destuff & 3) == 0)
-            s->bitpos = 0;
     }
     else
     {
-        /* Stop bit(s) */
-        bit = 1;
-        s->bitpos++;
-        if (s->bitpos > s->data_bits + s->stop_bits)
-            s->bitpos = 0;
+        bit = s->byte_in_progress & 1;
+        s->byte_in_progress >>= 1;
+        /* Drop the stop bit on every fourth character for V.14 simulation */
+        if ((++destuff & 3) == 0)
+        {
+            if (++s->bitpos > s->total_bits - 1)
+                s->bitpos = 0;
+        }
+        else
+        {
+            if (++s->bitpos > s->total_bits)
+                s->bitpos = 0;
+        }
     }
     return bit;
 }
@@ -112,7 +108,7 @@ int v14_test_async_tx_get_bit(void *user_data)
 static int test_get_async_byte(void *user_data)
 {
     int byte;
-    
+
     byte = tx_async_chars & 0xFF;
     tx_async_chars++;
     return byte;
@@ -152,7 +148,7 @@ int main(int argc, char *argv[])
         printf("Test failed.\n");
         exit(2);
     }
-    
+
     printf("Test with async 7E1\n");
     async_tx_init(&tx_async, 7, ASYNC_PARITY_EVEN, 1, FALSE, test_get_async_byte, NULL);
     async_rx_init(&rx_async, 7, ASYNC_PARITY_EVEN, 1, FALSE, test_put_async_byte, NULL);
@@ -209,7 +205,7 @@ int main(int argc, char *argv[])
         async_rx_put_bit(&rx_async, bit);
     }
     printf("Chars=%d/%d, PE=%d, FE=%d\n", tx_async_chars, rx_async_chars, rx_async.parity_errors, rx_async.framing_errors);
-    if (tx_async_chars != rx_async_chars + 1
+    if (tx_async_chars != rx_async_chars
         ||
         rx_async.parity_errors
         ||

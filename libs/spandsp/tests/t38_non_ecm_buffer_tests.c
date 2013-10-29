@@ -42,9 +42,7 @@ module, used for T.38 gateways.
 #include <assert.h>
 #include <errno.h>
 
-//#if defined(WITH_SPANDSP_INTERNALS)
 #define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
 
 #include "spandsp.h"
 
@@ -647,7 +645,7 @@ int main(int argc, char *argv[])
         }
     }
     printf("    Initial ones from an empty TCF buffer OK\n");
-    
+
     /* Now send some initial ones, and see that we continue to get all ones
        as the stuffing. */
     memset(buf, 0xFF, 500);

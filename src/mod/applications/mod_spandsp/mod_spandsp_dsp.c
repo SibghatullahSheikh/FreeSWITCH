@@ -206,7 +206,7 @@ switch_status_t spandsp_tdd_send_session(switch_core_session_t *session, const c
 		return SWITCH_STATUS_FALSE;
 	}
 
-	tdd_state = v18_init(NULL, TRUE, get_v18_mode(session), put_text_msg, NULL);
+	tdd_state = v18_init(NULL, TRUE, get_v18_mode(session), V18_AUTOMODING_GLOBAL, put_text_msg, NULL);
 
 
 	v18_put(tdd_state, text, -1);
@@ -253,7 +253,7 @@ switch_status_t spandsp_tdd_encode_session(switch_core_session_t *session, const
 	}
 
 	pvt->session = session;
-	pvt->tdd_state = v18_init(NULL, TRUE, get_v18_mode(session), put_text_msg, NULL);
+	pvt->tdd_state = v18_init(NULL, TRUE, get_v18_mode(session), V18_AUTOMODING_GLOBAL, put_text_msg, NULL);
 	pvt->head_lead = TDD_LEAD;
 
 	v18_put(pvt->tdd_state, text, -1);
@@ -331,7 +331,7 @@ switch_status_t spandsp_tdd_decode_session(switch_core_session_t *session)
 	}
 
 	pvt->session = session;
-	pvt->tdd_state = v18_init(NULL, FALSE, get_v18_mode(session), put_text_msg, pvt);
+	pvt->tdd_state = v18_init(NULL, FALSE, get_v18_mode(session), V18_AUTOMODING_GLOBAL, put_text_msg, pvt);
 
 	if ((status = switch_core_media_bug_add(session, "spandsp_tdd_decode", NULL,
 						tdd_decode_callback, pvt, 0, SMBF_READ_REPLACE | SMBF_NO_PAUSE, &bug)) != SWITCH_STATUS_SUCCESS) {
@@ -505,7 +505,7 @@ switch_status_t spandsp_inband_dtmf_session(switch_core_session_t *session)
 	}
 
 	if ((status = switch_core_media_bug_add(session, "spandsp_dtmf_detect", NULL,
-						inband_dtmf_callback, pvt, 0, SMBF_READ_REPLACE | SMBF_NO_PAUSE, &bug)) != SWITCH_STATUS_SUCCESS) {
+						inband_dtmf_callback, pvt, 0, SMBF_READ_REPLACE | SMBF_NO_PAUSE | SMBF_ONE_ONLY, &bug)) != SWITCH_STATUS_SUCCESS) {
 		return status;
 	}
 
@@ -789,10 +789,15 @@ static switch_bool_t callprogress_detector_process_buffer(switch_media_bug_t *bu
 		tone_detector_process_buffer(detector, frame->data, frame->samples, &detected_tone);
 		if (detected_tone) {
 			switch_event_t *event = NULL;
+			switch_channel_t *channel = NULL;
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "DETECTED TONE: %s\n", detected_tone);
 			if (switch_event_create(&event, SWITCH_EVENT_DETECTED_TONE) == SWITCH_STATUS_SUCCESS) {
 				switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Detected-Tone", detected_tone);
 				switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Unique-ID", switch_core_session_get_uuid(session));
+
+				channel = switch_core_session_get_channel(session);
+				if (channel) switch_channel_event_set_data(channel, event);
+
 				switch_event_fire(&event);
 			}
 		}
@@ -852,5 +857,5 @@ void mod_spandsp_dsp_shutdown(void)
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

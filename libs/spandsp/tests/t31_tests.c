@@ -29,9 +29,6 @@
 \section t31_tests_page_sec_1 What does it do?
 */
 
-/* Enable the following definition to enable direct probing into the FAX structures */
-//#define WITH_SPANDSP_INTERNALS
-
 #if defined(HAVE_CONFIG_H)
 #include "config.h"
 #endif
@@ -47,10 +44,6 @@
 #include <string.h>
 #include <assert.h>
 #include <sndfile.h>
-
-//#if defined(WITH_SPANDSP_INTERNALS)
-#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
 
 #include "spandsp.h"
 #include "spandsp/t30_fcf.h"
@@ -112,8 +105,11 @@ static const struct command_response_s fax_send_test_seq[] =
     RESPONSE("\r\nOK\r\n"),
     EXCHANGE("AT+FRH=3\r", "\r\nCONNECT\r\n"),
     //<DIS frame data>
-    RESPONSE("\xFF\x13\x80\x00\xEE\xF8\x80\x80\x91\x80\x80\x80\x18\x78\x57\x10\x03"), // For audio FAXing
-    //RESPONSE("\xFF\x13\x80\x04\xEE\xF8\x80\x80\x91\x80\x80\x80\x18\xE4\xE7\x10\x03"),   // For T.38 FAXing
+#if 1
+    RESPONSE("\xFF\x13\x80\x00\xEE\xF8\x80\x80\x89\x80\x80\x80\x18\x18\xB9\x10\x03"),   // For audio FAXing
+#else
+    RESPONSE("\xFF\x13\x80\x04\xEE\xF8\x80\x80\x89\x80\x80\x80\x18\x84\x09\x10\x03"),   // For T.38 FAXing
+#endif
     RESPONSE("\r\nOK\r\n"),
     //EXCHANGE("AT+FRH=3\r", "\r\nNO CARRIER\r\n"),
     EXCHANGE("AT+FTH=3\r", "\r\nCONNECT\r\n"),
@@ -316,7 +312,7 @@ static void phase_e_handler(t30_state_t *s, void *user_data, int result)
 {
     int i;
     char tag[20];
-    
+
     i = (intptr_t) user_data;
     snprintf(tag, sizeof(tag), "%c: Phase E", i);
     printf("Phase E handler on channel %c\n", i);
@@ -329,46 +325,51 @@ static void phase_e_handler(t30_state_t *s, void *user_data, int result)
 
 static int modem_call_control(t31_state_t *s, void *user_data, int op, const char *num)
 {
+    printf("\nModem control - %s", at_modem_control_to_str(op));
     switch (op)
     {
-    case AT_MODEM_CONTROL_ANSWER:
-        printf("\nModem control - Answering\n");
-        answered = TRUE;
-        break;
     case AT_MODEM_CONTROL_CALL:
-        printf("\nModem control - Dialing '%s'\n", num);
+        printf(" %s", num);
         t31_call_event(t31_state, AT_CALL_EVENT_CONNECTED);
         break;
+    case AT_MODEM_CONTROL_ANSWER:
+        answered = TRUE;
+        break;
     case AT_MODEM_CONTROL_HANGUP:
-        printf("\nModem control - Hanging up\n");
         done = TRUE;
         break;
     case AT_MODEM_CONTROL_OFFHOOK:
-        printf("\nModem control - Going off hook\n");
         break;
     case AT_MODEM_CONTROL_DTR:
-        printf("\nModem control - DTR %d\n", (int) (intptr_t) num);
+        printf(" %d", (int) (intptr_t) num);
         break;
     case AT_MODEM_CONTROL_RTS:
-        printf("\nModem control - RTS %d\n", (int) (intptr_t) num);
+        printf(" %d", (int) (intptr_t) num);
         break;
     case AT_MODEM_CONTROL_CTS:
-        printf("\nModem control - CTS %d\n", (int) (intptr_t) num);
+        printf(" %d", (int) (intptr_t) num);
         break;
     case AT_MODEM_CONTROL_CAR:
-        printf("\nModem control - CAR %d\n", (int) (intptr_t) num);
+        printf(" %d", (int) (intptr_t) num);
         break;
     case AT_MODEM_CONTROL_RNG:
-        printf("\nModem control - RNG %d\n", (int) (intptr_t) num);
+        printf(" %d", (int) (intptr_t) num);
         break;
     case AT_MODEM_CONTROL_DSR:
-        printf("\nModem control - DSR %d\n", (int) (intptr_t) num);
+        printf(" %d", (int) (intptr_t) num);
         break;
-    default:
-        printf("\nModem control - operation %d\n", op);
+    case AT_MODEM_CONTROL_SETID:
+        printf(" %d", (int) (intptr_t) num);
+        break;
+    case AT_MODEM_CONTROL_RESTART:
+        printf(" %d", (int) (intptr_t) num);
+        break;
+    case AT_MODEM_CONTROL_DTE_TIMEOUT:
+        printf(" %d", (int) (intptr_t) num);
         break;
     }
     /*endswitch*/
+    printf("\n");
     return 0;
 }
 /*- End of function --------------------------------------------------------*/
@@ -482,8 +483,6 @@ static int t30_tests(int t38_mode, int use_gui, int log_audio, int test_sending,
     int fast_send;
     int fast_send_tcf;
     int fast_blocks;
-    uint8_t fast_buf[1000];
-    uint8_t msg[1024];
     int msg_len;
     int t30_len;
     int t31_len;
@@ -491,14 +490,16 @@ static int t30_tests(int t38_mode, int use_gui, int log_audio, int test_sending,
     int without_pacing;
     int use_tep;
     int seq_no;
+    int i;
+    int k;
+    int outframes;
+    uint8_t fast_buf[1000];
+    uint8_t msg[1024];
     double tx_when;
     double rx_when;
     t30_state_t *t30;
     t38_core_state_t *t38_core;
     logging_state_t *logging;
-    int i;
-    int k;
-    int outframes;
     int16_t t30_amp[SAMPLES_PER_CHUNK];
     int16_t t31_amp[SAMPLES_PER_CHUNK];
     int16_t silence[SAMPLES_PER_CHUNK];
@@ -507,7 +508,7 @@ static int t30_tests(int t38_mode, int use_gui, int log_audio, int test_sending,
     SNDFILE *in_handle;
 
     /* Test the T.31 modem against the full FAX machine in spandsp */
-    
+
     /* Set up the test environment */
     t38_version = 1;
     without_pacing = FALSE;
@@ -640,15 +641,16 @@ static int t30_tests(int t38_mode, int use_gui, int log_audio, int test_sending,
     span_log_set_level(logging, SPAN_LOG_DEBUG | SPAN_LOG_SHOW_TAG | SPAN_LOG_SHOW_SAMPLE_TIME);
     span_log_set_tag(logging, "T.31");
 
+    logging = at_get_logging_state(t31_get_at_state(t31_state));
+    span_log_set_level(logging, SPAN_LOG_DEBUG | SPAN_LOG_SHOW_TAG | SPAN_LOG_SHOW_SAMPLE_TIME);
+    span_log_set_tag(logging, "T.31");
+
     if (t38_mode)
     {
         t38_core = t31_get_t38_core_state(t31_state);
         logging = t38_core_get_logging_state(t38_core);
         span_log_set_level(logging, SPAN_LOG_DEBUG | SPAN_LOG_SHOW_TAG | SPAN_LOG_SHOW_SAMPLE_TIME);
         span_log_set_tag(logging, "T.31");
-
-        span_log_set_level(&t31_state->at_state.logging, SPAN_LOG_DEBUG | SPAN_LOG_SHOW_TAG | SPAN_LOG_SHOW_SAMPLE_TIME);
-        span_log_set_tag(&t31_state->at_state.logging, "T.31");
 
         t31_set_mode(t31_state, TRUE);
         t38_set_t38_version(t38_core, t38_version);
@@ -666,7 +668,7 @@ static int t30_tests(int t38_mode, int use_gui, int log_audio, int test_sending,
     {
         if (countdown)
         {
-            /* Deal with call setup, through the AT interface. */ 
+            /* Deal with call setup, through the AT interface. */
             if (answered)
             {
                 countdown = 0;
@@ -842,7 +844,7 @@ static int t30_tests(int t38_mode, int use_gui, int log_audio, int test_sending,
         t38_core = t31_get_t38_core_state(t31_state);
         span_log_bump_samples(t38_core_get_logging_state(t38_core), SAMPLES_PER_CHUNK);
         span_log_bump_samples(t31_get_logging_state(t31_state), SAMPLES_PER_CHUNK);
-        span_log_bump_samples(&t31_state->at_state.logging, SAMPLES_PER_CHUNK);
+        span_log_bump_samples(at_get_logging_state(t31_get_at_state(t31_state)), SAMPLES_PER_CHUNK);
     }
 
     if (t38_mode)
@@ -868,7 +870,7 @@ static int t30_tests(int t38_mode, int use_gui, int log_audio, int test_sending,
     if (!done  ||  !sequence_terminated)
     {
         printf("Tests failed\n");
-        return 2;
+        return -1;
     }
 
     return 0;
@@ -932,7 +934,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    t30_tests(t38_mode, use_gui, log_audio, test_sending, g1050_model_no, g1050_speed_pattern_no);
+    if (t30_tests(t38_mode, use_gui, log_audio, test_sending, g1050_model_no, g1050_speed_pattern_no) < 0)
+        return 2;
     printf("Tests passed\n");
     return 0;
 }

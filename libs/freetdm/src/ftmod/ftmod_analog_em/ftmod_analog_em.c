@@ -91,6 +91,7 @@ static ftdm_status_t ftdm_analog_em_start(ftdm_span_t *span)
 
 static FIO_CHANNEL_GET_SIG_STATUS_FUNCTION(analog_em_get_channel_sig_status)
 {
+	ftdm_unused_arg(ftdmchan);
 	*status = FTDM_SIG_STATE_UP;
 	return FTDM_SUCCESS;
 }
@@ -104,6 +105,7 @@ static FIO_CHANNEL_GET_SIG_STATUS_FUNCTION(analog_em_get_channel_sig_status)
 
 static FIO_SPAN_GET_SIG_STATUS_FUNCTION(analog_em_get_span_sig_status)
 {
+	ftdm_unused_arg(span);
 	*status = FTDM_SIG_STATE_UP;
 	return FTDM_SUCCESS;
 }
@@ -120,8 +122,10 @@ static FIO_SIG_CONFIGURE_FUNCTION(ftdm_analog_em_configure_span)
 {
 	ftdm_analog_em_data_t *analog_data;
 	const char *tonemap = "us";
-	uint32_t digit_timeout = 10;
+	uint32_t digit_timeout = 2000;
 	uint32_t max_dialstr = 11;
+	uint32_t dial_timeout = 0;
+	ftdm_bool_t answer_supervision = FTDM_FALSE;
 	const char *var, *val;
 	int *intval;
 
@@ -137,11 +141,22 @@ static FIO_SIG_CONFIGURE_FUNCTION(ftdm_analog_em_configure_span)
 	memset(analog_data, 0, sizeof(*analog_data));
 
 	while((var = va_arg(ap, char *))) {
+		ftdm_log(FTDM_LOG_DEBUG, "Parsing analog em parameter '%s'\n", var);
 		if (!strcasecmp(var, "tonemap")) {
 			if (!(val = va_arg(ap, char *))) {
 				break;
 			}
 			tonemap = val;
+		} else if (!strcasecmp(var, "answer_supervision")) {
+			if (!(val = va_arg(ap, char *))) {
+				break;
+			}
+			answer_supervision = ftdm_true(val);
+		} else if (!strcasecmp(var, "dial_timeout")) {
+			if (!(intval = va_arg(ap, int *))) {
+				break;
+			}
+			dial_timeout = *intval;
 		} else if (!strcasecmp(var, "digit_timeout")) {
 			if (!(intval = va_arg(ap, int *))) {
 				break;
@@ -153,7 +168,7 @@ static FIO_SIG_CONFIGURE_FUNCTION(ftdm_analog_em_configure_span)
 			}
 			max_dialstr = *intval;
 		} else {
-			snprintf(span->last_error, sizeof(span->last_error), "Unknown parameter [%s]", var);
+			ftdm_log(FTDM_LOG_ERROR, "Invalid parameter for analog em span: '%s'\n", var);
 			return FTDM_FAIL;
 		}
 	}
@@ -171,6 +186,8 @@ static FIO_SIG_CONFIGURE_FUNCTION(ftdm_analog_em_configure_span)
 	span->start = ftdm_analog_em_start;
 	analog_data->digit_timeout = digit_timeout;
 	analog_data->max_dialstr = max_dialstr;
+	analog_data->dial_timeout = dial_timeout;
+	analog_data->answer_supervision = answer_supervision;
 	span->signal_cb = sig_cb;
 	span->signal_type = FTDM_SIGTYPE_ANALOG;
 	span->signal_data = analog_data;
@@ -221,7 +238,12 @@ static void *ftdm_analog_em_channel_run(ftdm_thread_t *me, void *obj)
 	ftdm_channel_t *closed_chan;
 	uint32_t state_counter = 0, elapsed = 0, collecting = 0, interval = 0, last_digit = 0, indicate = 0, dial_timeout = 30000;
 	ftdm_sigmsg_t sig;
-	
+	int cas_bits = 0;
+	uint32_t cas_answer = 0;
+	int cas_answer_ms = 500;
+	ftdm_bool_t digits_sent = FTDM_FALSE;
+
+	ftdm_unused_arg(me);
 	ftdm_log(FTDM_LOG_DEBUG, "ANALOG EM CHANNEL thread starting.\n");
 
 	ts.buffer = NULL;
@@ -259,22 +281,22 @@ static void *ftdm_analog_em_channel_run(ftdm_thread_t *me, void *obj)
 	sig.channel = ftdmchan;
 	
 	assert(interval != 0);
+	ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "IO Interval: %u\n", interval);
 
 	while (ftdm_running() && ftdm_test_flag(ftdmchan, FTDM_CHANNEL_INTHREAD)) {
 		ftdm_wait_flag_t flags = FTDM_READ;
 		ftdm_size_t dlen = 0;
 		
-		len = sizeof(frame);
-		
 		elapsed += interval;
 		state_counter += interval;
-		
+
 		if (!ftdm_test_flag(ftdmchan, FTDM_CHANNEL_STATE_CHANGE)) {
 			switch(ftdmchan->state) {
 			case FTDM_CHANNEL_STATE_DIALING:
 				{
 					if (! ftdmchan->needed_tones[FTDM_TONEMAP_RING]
-						&& ftdm_test_flag(ftdmchan, FTDM_CHANNEL_WINK)) {
+						&& ftdm_test_flag(ftdmchan, FTDM_CHANNEL_WINK)
+						&& !digits_sent) {
 						if (ftdm_strlen_zero(ftdmchan->caller_data.dnis.digits)) {
 							ftdm_log(FTDM_LOG_ERROR, "No Digits to send!\n");
 							ftdm_set_state_locked(ftdmchan, FTDM_CHANNEL_STATE_BUSY);
@@ -284,12 +306,18 @@ static void *ftdm_analog_em_channel_run(ftdm_thread_t *me, void *obj)
 								ftdm_set_state_locked(ftdmchan, FTDM_CHANNEL_STATE_BUSY);
 							} else {
 								state_counter = 0;
+								digits_sent = FTDM_TRUE;
 								ftdmchan->needed_tones[FTDM_TONEMAP_RING] = 1;
 								ftdmchan->needed_tones[FTDM_TONEMAP_BUSY] = 1;
 								ftdmchan->needed_tones[FTDM_TONEMAP_FAIL1] = 1;
 								ftdmchan->needed_tones[FTDM_TONEMAP_FAIL2] = 1;
 								ftdmchan->needed_tones[FTDM_TONEMAP_FAIL3] = 1;
 								dial_timeout = ((ftdmchan->dtmf_on + ftdmchan->dtmf_off) * strlen(ftdmchan->caller_data.dnis.digits)) + 2000;
+								if (analog_data->dial_timeout) {
+									dial_timeout += analog_data->dial_timeout;
+								}
+								ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "Outbound dialing timeout: %dms\n", dial_timeout);
+								ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "Outbound CAS answer timeout: %dms\n", cas_answer_ms);
 							}
 						}
 						break;
@@ -297,10 +325,25 @@ static void *ftdm_analog_em_channel_run(ftdm_thread_t *me, void *obj)
 					if (state_counter > dial_timeout) {
 						if (!ftdm_test_flag(ftdmchan, FTDM_CHANNEL_WINK)) {
 							ftdm_set_state_locked(ftdmchan, FTDM_CHANNEL_STATE_BUSY);
-						} else {
+						} else if (!analog_data->answer_supervision) {
 							ftdm_set_state_locked(ftdmchan, FTDM_CHANNEL_STATE_UP);
 						}
-					} 
+					}
+					cas_bits = 0;
+					ftdm_channel_command(ftdmchan, FTDM_COMMAND_GET_CAS_BITS, &cas_bits);
+					if (!(state_counter % 1000)) {
+						ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "CAS bits: 0x%X\n", cas_bits);
+					}
+					if (cas_bits == 0xF) {
+						cas_answer += interval;
+						if (cas_answer >= cas_answer_ms) {
+							ftdm_log_chan_msg(ftdmchan, FTDM_LOG_DEBUG, "Answering on CAS answer signal persistence!\n");
+							ftdm_set_state_locked(ftdmchan, FTDM_CHANNEL_STATE_UP);
+						}
+					} else if (cas_answer) {
+						ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "Resetting cas answer to 0: 0x%X!\n", cas_bits);
+						cas_answer = 0;
+					}
 				}
 				break;
 			case FTDM_CHANNEL_STATE_DIALTONE:
@@ -488,9 +531,15 @@ static void *ftdm_analog_em_channel_run(ftdm_thread_t *me, void *obj)
 			continue;
 		}
 
+		len = sizeof(frame);
 		if (ftdm_channel_read(ftdmchan, frame, &len) != FTDM_SUCCESS) {
 			ftdm_log(FTDM_LOG_ERROR, "READ ERROR [%s]\n", ftdmchan->last_error);
 			goto done;
+		}
+
+		if (0 == len) {
+			ftdm_log(FTDM_LOG_DEBUG, "Nothing read\n");
+			continue;
 		}
 
 		if (ftdmchan->detected_tones[0]) {
@@ -511,7 +560,11 @@ static void *ftdm_analog_em_channel_run(ftdm_thread_t *me, void *obj)
 				ftdm_log(FTDM_LOG_ERROR, "Failure indication detected!\n");
 				ftdm_set_state_locked(ftdmchan, FTDM_CHANNEL_STATE_BUSY);
 			} else if (ftdmchan->detected_tones[FTDM_TONEMAP_RING]) {
-				ftdm_set_state_locked(ftdmchan, FTDM_CHANNEL_STATE_UP);
+				if (!analog_data->answer_supervision) {
+					ftdm_set_state_locked(ftdmchan, FTDM_CHANNEL_STATE_UP);
+				} else {
+					ftdm_log_chan_msg(ftdmchan, FTDM_LOG_DEBUG, "Ringing, but not answering since answer supervision is enabled\n");
+				}
 			}
 			
 			ftdm_channel_clear_detected_tones(ftdmchan);
@@ -594,7 +647,7 @@ static __inline__ ftdm_status_t process_event(ftdm_span_t *span, ftdm_event_t *e
 	sig.span_id = event->channel->span_id;
 	sig.channel = event->channel;
 
-
+	ftdm_unused_arg(span);
 	ftdm_log(FTDM_LOG_DEBUG, "EVENT [%s][%d:%d] STATE [%s]\n", 
 			ftdm_oob_event2str(event->enum_id), event->channel->span_id, event->channel->chan_id, ftdm_channel_state2str(event->channel->state));
 
@@ -613,7 +666,9 @@ static __inline__ ftdm_status_t process_event(ftdm_span_t *span, ftdm_event_t *e
 	case FTDM_OOB_OFFHOOK:
 		{
 			if (ftdm_test_flag(event->channel, FTDM_CHANNEL_INTHREAD)) {
-				ftdm_set_state_locked(event->channel, FTDM_CHANNEL_STATE_UP);
+				if (event->channel->state < FTDM_CHANNEL_STATE_UP) {
+					ftdm_set_state_locked(event->channel, FTDM_CHANNEL_STATE_UP);
+				}
 			} else {
 				ftdm_set_state_locked(event->channel, FTDM_CHANNEL_STATE_DIALTONE);
 				ftdm_mutex_unlock(event->channel->mutex);
@@ -649,6 +704,7 @@ static void *ftdm_analog_em_run(ftdm_thread_t *me, void *obj)
 	ftdm_span_t *span = (ftdm_span_t *) obj;
 	ftdm_analog_em_data_t *analog_data = span->signal_data;
 
+	ftdm_unused_arg(me);
 	ftdm_log(FTDM_LOG_DEBUG, "ANALOG EM thread starting.\n");
 
 	while(ftdm_running() && ftdm_test_flag(analog_data, FTDM_ANALOG_EM_RUNNING)) {
@@ -721,5 +777,5 @@ EX_DECLARE_DATA ftdm_module_t ftdm_module = {
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

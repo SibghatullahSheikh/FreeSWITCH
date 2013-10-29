@@ -57,9 +57,17 @@ typedef struct
     /*! \brief Row counter for playing out the rows of the image. */
     int row;
 
-    /*! \brief Image length of the image in the file. This is used when the
-               image is resized or dithered flat. */
-    int image_length;
+    /*! \brief Width of the image in the file. */
+    uint32_t image_width;
+    /*! \brief Length of the image in the file. */
+    uint32_t image_length;
+    /*! \brief Column-to-column (X) resolution in pixels per metre of the image in the file. */
+    int image_x_resolution;
+    /*! \brief Row-to-row (Y) resolution in pixels per metre of the image in the file. */
+    int image_y_resolution;
+    /*! \brief Code for the combined X and Y resolution of the image in the file. */
+    int resolution_code;
+
     /*! \brief Row counter used when the image is resized or dithered flat. */
     int raw_row;
 } t4_tx_tiff_state_t;
@@ -72,10 +80,23 @@ typedef struct
 */
 typedef struct
 {
-    /*! \brief Column-to-column (X) resolution in pixels per metre. */
+    /*! \brief The type of compression used on the wire. */
+    int compression;
+    /*! \brief Image type - bi-level, gray, colour, etc. */
+    int image_type;
+    /*! \brief The width code for the image on the line side. */
+    int width_code;
+
+    /*! \brief The width of the current page on the wire, in pixels. */
+    uint32_t image_width;
+    /*! \brief The length of the current page on the wire, in pixels. */
+    uint32_t image_length;
+    /*! \brief Column-to-column (X) resolution in pixels per metre on the wire. */
     int x_resolution;
-    /*! \brief Row-to-row (Y) resolution in pixels per metre. */
+    /*! \brief Row-to-row (Y) resolution in pixels per metre on the wire. */
     int y_resolution;
+    /*! \brief Code for the combined X and Y resolution on the wire. */
+    int resolution_code;
 } t4_tx_metadata_t;
 
 /*!
@@ -89,22 +110,10 @@ struct t4_tx_state_s
     /*! \brief Opaque pointer passed to row_read_handler. */
     void *row_handler_user_data;
 
-    /*! \brief The type of compression used between the FAX machines. */
-    int line_encoding;
-
-    int line_encoding_bilevel;
-    int line_encoding_gray;
-    int line_encoding_colour;
-
     /*! \brief When superfine and fine resolution images need to be squahed vertically
                to a lower resolution, this value sets the number of source rows which
                must be squashed to form each row on the wire. */
     int row_squashing_ratio;
-
-    /*! \brief The width of the current page, in pixels. */
-    uint32_t image_width;
-    /*! \brief The length of the current page, in pixels. */
-    uint32_t image_length;
 
     /*! \brief The size of the compressed image on the line side, in bits. */
     int line_image_size;
@@ -122,7 +131,7 @@ struct t4_tx_state_s
                in no header line. */
     const char *header_info;
     /*! \brief The local ident string. This is used with header_info to form a
-               page header line. */ 
+               page header line. */
     const char *local_ident;
     /*! \brief The page number of current page. The first page is zero. If FAX page
                headers are used, the page number in the header will be one more than
@@ -140,19 +149,34 @@ struct t4_tx_state_s
     union
     {
         t4_t6_encode_state_t t4_t6;
+        t85_encode_state_t t85;
+#if defined(SPANDSP_SUPPORT_T88)
+        t88_encode_state_t t88;
+#endif
         t42_encode_state_t t42;
 #if defined(SPANDSP_SUPPORT_T43)
         t43_encode_state_t t43;
 #endif
-        t85_encode_state_t t85;
+#if defined(SPANDSP_SUPPORT_T45)
+        t45_encode_state_t t45;
+#endif
     } encoder;
 
     image_translate_state_t translator;
+    uint8_t *pack_buf;
+    int pack_ptr;
+    int pack_row;
+    int pack_bit_mask;
 
     int apply_lab;
     lab_params_t lab_params;
     uint8_t *colour_map;
     int colour_map_entries;
+
+    uint8_t *pre_encoded_buf;
+    int pre_encoded_len;
+    int pre_encoded_ptr;
+    int pre_encoded_bit;
 
     /* Supporting information, like resolutions, which the backend may want. */
     t4_tx_metadata_t metadata;

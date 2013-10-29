@@ -24,6 +24,7 @@
  * Contributor(s):
  * 
  * Anthony Minessale II <anthm@freeswitch.org>
+ * William King <william.king@quentustech.com>
  *
  * mod_valet_parking.c -- Valet Parking Module
  *
@@ -207,7 +208,7 @@ static valet_token_t *next_id(switch_core_session_t *session, valet_lot_t *lot, 
 		}
 	}
 
-	for (i = min; (i < max || max == 0); i++) {
+	for (i = min; (i <= max || max == 0); i++) {
 		switch_snprintf(buf, sizeof(buf), "%d", i);
 		switch_mutex_lock(lot->mutex);
 		token = (valet_token_t *) switch_core_hash_find(lot->hash, buf);
@@ -554,7 +555,7 @@ SWITCH_STANDARD_APP(valet_parking_function)
 						token->timeout = 0;
 						token->bridged = 1;
 						
-						switch_ivr_uuid_bridge(switch_core_session_get_uuid(session), token->uuid);
+						switch_ivr_uuid_bridge(token->uuid, switch_core_session_get_uuid(session));
 
 						return;
 					}
@@ -885,6 +886,7 @@ static void pres_event_handler(switch_event_t *event)
 
 				switch_mutex_unlock(lot->mutex);
 			}
+			switch_console_free_matches(&matches);
 		}
 	}
 
@@ -947,5 +949,5 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_valet_parking_load)
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet
  */

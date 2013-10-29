@@ -91,6 +91,9 @@ struct sdp_parser_s {
 #define pr_error   pr_output.pru_error
 #define pr_session pr_output.pru_session
 
+#ifdef _MSC_VER
+#undef STRICT
+#endif
 #define STRICT(pr) (pr->pr_strict)
 
 /* Static parser object used when running out of memory */
@@ -1329,8 +1332,8 @@ static void parse_media(sdp_parser_t *p, char *r, sdp_media_t **result)
 
   /* RTP format list */
   if (*r && sdp_media_has_rtp(m)) {
-    parse_payload(p, r, &m->m_rtpmaps);
-    return;
+	  parse_payload(p, r, &m->m_rtpmaps);
+	  return;
   }
 
   /* "normal" format list */
@@ -1386,6 +1389,10 @@ void sdp_media_transport(sdp_media_t *m, char const *s)
     m->m_proto = sdp_proto_rtp, m->m_proto_name = "RTP/AVP";
   else if (su_casematch(s, "RTP/SAVP"))
     m->m_proto = sdp_proto_srtp, m->m_proto_name = "RTP/SAVP";
+  else if (su_casematch(s, "RTP/SAVPF"))
+	  m->m_proto = sdp_proto_extended_srtp, m->m_proto_name = "RTP/SAVPF";
+  else if (su_casematch(s, "UDP/TLS/RTP/SAVPF"))
+    m->m_proto = sdp_proto_extended_srtp, m->m_proto_name = "UDP/TLS/RTP/SAVPF";
   else if (su_casematch(s, "udptl"))
     /* Lower case - be compatible with people living by T.38 examples */
     m->m_proto = sdp_proto_udptl, m->m_proto_name = "udptl";
@@ -1406,7 +1413,7 @@ void sdp_media_transport(sdp_media_t *m, char const *s)
 /** Check if media uses RTP as its transport protocol.  */
 int sdp_media_has_rtp(sdp_media_t const *m)
 {
-  return m && (m->m_proto == sdp_proto_rtp || m->m_proto == sdp_proto_srtp);
+	return m && (m->m_proto == sdp_proto_rtp || m->m_proto == sdp_proto_srtp || m->m_proto == sdp_proto_extended_srtp);
 }
 
 #define RTPMAP(pt, encoding, rate, params) \
@@ -1600,8 +1607,8 @@ static void parse_media_attr(sdp_parser_t *p, char *r, sdp_media_t *m,
   }
 
   if (rtp && su_casematch(name, "rtpmap")) {
-    if ((n = parse_rtpmap(p, r, m)) == 0 || n < -1)
-      return;
+	  if ((n = parse_rtpmap(p, r, m)) == 0 || n < -1)
+		  return;
   }
   else if (rtp && su_casematch(name, "fmtp")) {
     if ((n = parse_fmtp(p, r, m)) == 0 || n < -1)
@@ -1801,7 +1808,7 @@ static int parse_ul(sdp_parser_t *p, char **r,
 }
 
 #if !HAVE_STRTOULL
-unsigned longlong strtoull(char const *string, char **return_end, int base);
+unsigned long long strtoull(char const *string, char **return_end, int base);
 #endif
 
 /*
@@ -1810,7 +1817,7 @@ unsigned longlong strtoull(char const *string, char **return_end, int base);
 static int parse_ull(sdp_parser_t *p, char **r,
 		     uint64_t *result, uint64_t max)
 {
-  unsigned longlong ull;
+  unsigned long long ull;
 
   char *s = *r;
 

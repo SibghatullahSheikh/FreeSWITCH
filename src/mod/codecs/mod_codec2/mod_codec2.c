@@ -36,6 +36,8 @@
 #define CODEC2_DEBUG
 */
 
+#define CODEC2_SAMPLES_PER_FRAME 160
+
 #ifdef CODEC2_DEBUG
 #define codec2_assert(_x) switch_assert(_x)
 #else
@@ -80,11 +82,11 @@ static switch_status_t switch_codec2_init(switch_codec_t *codec, switch_codec_fl
 	}
 	
 	if (encoding) {
-		context->encoder = codec2_create();		
+		context->encoder = codec2_create(CODEC2_MODE_2400);		
 	}
 	
 	if (decoding) {
-		context->decoder = codec2_create();
+		context->decoder = codec2_create(CODEC2_MODE_2400);
 	}
 
 	codec->private_info = context;
@@ -260,5 +262,5 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_codec2_load)
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

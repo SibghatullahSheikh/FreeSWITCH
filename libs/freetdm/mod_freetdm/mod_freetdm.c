@@ -489,6 +489,10 @@ static switch_status_t channel_on_destroy(switch_core_session_t *session)
 		if (tech_pvt->write_codec.implementation) {
 			switch_core_codec_destroy(&tech_pvt->write_codec);
 		}
+
+		switch_core_session_unset_read_codec(session);
+		switch_core_session_unset_write_codec(session);
+
 	}
 
 	return SWITCH_STATUS_SUCCESS;
@@ -3775,11 +3779,14 @@ static switch_status_t load_config(void)
 			const char *dialplan = "XML";
 			const char *tonegroup = NULL;
 			char *digit_timeout = NULL;
+			char *dial_timeout = NULL;
 			char *max_digits = NULL;
 			char *dial_regex = NULL;
 			char *hold_music = NULL;
 			char *fail_dial_regex = NULL;
-			uint32_t span_id = 0, to = 0, max = 0;
+			char str_false[] = "false";
+			char *answer_supervision = str_false;
+			uint32_t span_id = 0, to = 0, max = 0, dial_timeout_int = 0;
 			ftdm_span_t *span = NULL;
 			analog_option_t analog_options = ANALOG_OPTION_NONE;
 
@@ -3791,6 +3798,8 @@ static switch_status_t load_config(void)
 					tonegroup = val;
 				} else if (!strcasecmp(var, "digit_timeout") || !strcasecmp(var, "digit-timeout")) {
 					digit_timeout = val;
+				} else if (!strcasecmp(var, "dial-timeout")) {
+					dial_timeout = val;
 				} else if (!strcasecmp(var, "context")) {
 					context = val;
 				} else if (!strcasecmp(var, "dialplan")) {
@@ -3803,6 +3812,8 @@ static switch_status_t load_config(void)
 					hold_music = val;
 				} else if (!strcasecmp(var, "max_digits") || !strcasecmp(var, "max-digits")) {
 					max_digits = val;
+				} else if (!strcasecmp(var, "answer-supervision")) {
+					answer_supervision = val;
 				} else if (!strcasecmp(var, "enable-analog-option")) {
 					analog_options = enable_analog_option(val, analog_options);
 				}
@@ -3819,6 +3830,10 @@ static switch_status_t load_config(void)
 
 			if (digit_timeout) {
 				to = atoi(digit_timeout);
+			}
+
+			if (dial_timeout) {
+				dial_timeout_int = atoi(dial_timeout);
 			}
 
 			if (max_digits) {
@@ -3851,7 +3866,9 @@ static switch_status_t load_config(void)
 
 			if (ftdm_configure_span(span, "analog_em", on_analog_signal,
 								   "tonemap", tonegroup,
+								   "answer_supervision", answer_supervision,
 								   "digit_timeout", &to,
+								   "dial_timeout", &dial_timeout_int,
 								   "max_dialstr", &max,
 								   FTDM_TAG_END) != FTDM_SUCCESS) {
 				LOAD_ERROR("Error starting FreeTDM span %d\n", span_id);
@@ -5170,36 +5187,96 @@ end:
 	return SWITCH_STATUS_SUCCESS;
 }
 
+SWITCH_STANDARD_API(ftdm_api_exec_usage)
+{
+	char *mycmd = NULL, *argv[10] = { 0 };
+	int argc = 0;
+	uint32_t chan_id = 0;
+	ftdm_channel_t *chan = NULL;
+	ftdm_span_t *span = NULL;
+	uint32_t tokencnt = 0;
+	/*ftdm_cli_entry_t *entry = NULL;*/
+
+	if (!zstr(cmd) && (mycmd = strdup(cmd))) {
+		argc = switch_separate_string(mycmd, ' ', argv, (sizeof(argv) / sizeof(argv[0])));
+	}
+
+	if (!argc) {
+		stream->write_function(stream, "-ERR invalid args\n");
+		goto end;
+	}
+
+	if (argc < 2) {
+		stream->write_function(stream, "-ERR invalid args\n");
+		goto end;
+	}
+
+	ftdm_span_find_by_name(argv[0], &span);
+	chan_id = atoi(argv[1]);
+	if (!span) {
+		stream->write_function(stream, "-ERR invalid span\n");
+		goto end;
+	}
+
+	if (chan_id <= 0) {
+		stream->write_function(stream, "-ERR invalid channel\n");
+		goto end;
+	}
+
+	if (chan_id > ftdm_span_get_chan_count(span)) {
+		stream->write_function(stream, "-ERR invalid channel\n");
+		goto end;
+	}
+
+	chan = ftdm_span_get_channel(span, chan_id);
+	if (!chan) {
+		stream->write_function(stream, "-ERR channel not configured\n");
+		goto end;
+	}
+
+	tokencnt = ftdm_channel_get_token_count(chan);
+	stream->write_function(stream, "%d", tokencnt);
+
+end:
+	switch_safe_free(mycmd);
+	return SWITCH_STATUS_SUCCESS;
+}
+
 struct ftdm_cli_entry {
 	const char *name;
 	const char *args;
 	const char *complete;
+	const char *desc;
 	ftdm_cli_function_t execute;
+	switch_api_function_t execute_api;
 };
 
 static ftdm_cli_entry_t ftdm_cli_options[] =
 {
-	{ "list", "", "", ftdm_cmd_list },
-	{ "start", "<span_id|span_name>", "", ftdm_cmd_start_stop },
-	{ "stop", "<span_id|span_name>", "", ftdm_cmd_start_stop },
-	{ "reset", "<span_id|span_name> [<chan_id>]", "", ftdm_cmd_reset },
-	{ "alarms", "<span_id> <chan_id>", "", ftdm_cmd_alarms },
-	{ "dump", "<span_id|span_name> [<chan_id>]", "", ftdm_cmd_dump },
-	{ "sigstatus", "get|set <span_id|span_name> [<chan_id>] [<sigstatus>]", "::[set:get", ftdm_cmd_sigstatus },
-	{ "trace", "<path> <span_id|span_name> [<chan_id>]", "", ftdm_cmd_trace },
-	{ "notrace", "<span_id|span_name> [<chan_id>]", "", ftdm_cmd_notrace },
-	{ "gains", "<rxgain> <txgain> <span_id|span_name> [<chan_id>]", "", ftdm_cmd_gains },
-	{ "dtmf", "on|off <span_id|span_name> [<chan_id>]", "::[on:off", ftdm_cmd_dtmf },
-	{ "queuesize", "<rxsize> <txsize> <span_id|span_name> [<chan_id>]", "", ftdm_cmd_queuesize },
-	{ "iostats", "enable|disable|flush|print <span_id|span_name> <chan_id>", "::[enable:disable:flush:print", ftdm_cmd_iostats },
-	{ "ioread", "<span_id|span_name> <chan_id> [num_times] [interval]", "", ftdm_cmd_ioread },
+	{ "list", "", "", NULL, ftdm_cmd_list, NULL },
+	{ "start", "<span_id|span_name>", "", NULL, ftdm_cmd_start_stop, NULL },
+	{ "stop", "<span_id|span_name>", "", NULL, ftdm_cmd_start_stop, NULL },
+	{ "reset", "<span_id|span_name> [<chan_id>]", "", NULL, ftdm_cmd_reset, NULL },
+	{ "alarms", "<span_id> <chan_id>", "", NULL, ftdm_cmd_alarms, NULL },
+	{ "dump", "<span_id|span_name> [<chan_id>]", "", NULL, ftdm_cmd_dump, NULL },
+	{ "sigstatus", "get|set <span_id|span_name> [<chan_id>] [<sigstatus>]", "::[set:get", NULL, ftdm_cmd_sigstatus, NULL },
+	{ "trace", "<path> <span_id|span_name> [<chan_id>]", "", NULL, ftdm_cmd_trace, NULL },
+	{ "notrace", "<span_id|span_name> [<chan_id>]", "", NULL, ftdm_cmd_notrace, NULL },
+	{ "gains", "<rxgain> <txgain> <span_id|span_name> [<chan_id>]", "", NULL, ftdm_cmd_gains, NULL },
+	{ "dtmf", "on|off <span_id|span_name> [<chan_id>]", "::[on:off", NULL, ftdm_cmd_dtmf, NULL },
+	{ "queuesize", "<rxsize> <txsize> <span_id|span_name> [<chan_id>]", "", NULL, ftdm_cmd_queuesize, NULL },
+	{ "iostats", "enable|disable|flush|print <span_id|span_name> <chan_id>", "::[enable:disable:flush:print", NULL, ftdm_cmd_iostats, NULL },
+	{ "ioread", "<span_id|span_name> <chan_id> [num_times] [interval]", "", NULL, ftdm_cmd_ioread, NULL },
+
+	/* Stand-alone commands (not part of the generic ftdm API */
+	{ "ftdm_usage", "<span_id|span_name> <chan_id>", "", "Return channel call count", NULL, ftdm_api_exec_usage },
 
 	/* Fake handlers as they are handled within freetdm library,
 	 * we should provide a way inside freetdm to query for completions from signaling modules */
-	{ "core state", "[!]<state_name>", "", NULL },
-	{ "core flag", "[!]<flag-int-value|flag-name> [<span_id|span_name>] [<chan_id>]", "", NULL },
-	{ "core spanflag", "[!]<flag-int-value|flag-name> [<span_id|span_name>]", "", NULL },
-	{ "core calls", "", "", NULL },
+	{ "core state", "[!]<state_name>", "", NULL, NULL, NULL },
+	{ "core flag", "[!]<flag-int-value|flag-name> [<span_id|span_name>] [<chan_id>]", "", NULL, NULL, NULL },
+	{ "core spanflag", "[!]<flag-int-value|flag-name> [<span_id|span_name>]", "", NULL, NULL, NULL },
+	{ "core calls", "", "", NULL, NULL, NULL },
 };
 
 static void print_usage(switch_stream_handle_t *stream, ftdm_cli_entry_t *cli)
@@ -5216,12 +5293,15 @@ static void print_full_usage(switch_stream_handle_t *stream)
 	stream->write_function(stream, "--------------------------------------------------------------------------------\n");
 	for (i = 0 ; i < ftdm_array_len(ftdm_cli_options); i++) {
 		entry = &ftdm_cli_options[i];
+		if (entry->execute_api) {
+			continue;
+		}
 		stream->write_function(stream, "ftdm %s %s\n", entry->name, entry->args);
 	}
 	stream->write_function(stream, "--------------------------------------------------------------------------------\n");
 }
 
-SWITCH_STANDARD_API(ft_function)
+SWITCH_STANDARD_API(ftdm_api_exec)
 {
 	char *mycmd = NULL, *argv[10] = { 0 };
 	int argc = 0;
@@ -5362,12 +5442,19 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_freetdm_load)
 	freetdm_endpoint_interface->io_routines = &freetdm_io_routines;
 	freetdm_endpoint_interface->state_handler = &freetdm_state_handlers;
 
-	SWITCH_ADD_API(commands_api_interface, "ftdm", "FreeTDM commands", ft_function, "<cmd> <args>");
+	SWITCH_ADD_API(commands_api_interface, "ftdm", "FreeTDM commands", ftdm_api_exec, "<cmd> <args>");
 	for (i = 0 ; i < ftdm_array_len(ftdm_cli_options); i++) {
 		char complete_cli[512];
 		entry = &ftdm_cli_options[i];
-		snprintf(complete_cli, sizeof(complete_cli), "add ftdm %s %s", entry->name, entry->complete);
-		switch_console_set_complete(complete_cli);
+		if (entry->execute_api) {
+			/* This is a stand-alone API */
+			SWITCH_ADD_API(commands_api_interface, entry->name, entry->desc, ftdm_api_exec_usage, entry->args);
+			snprintf(complete_cli, sizeof(complete_cli), "add %s %s", entry->name, entry->complete);
+			switch_console_set_complete(complete_cli);
+		} else {
+			snprintf(complete_cli, sizeof(complete_cli), "add ftdm %s %s", entry->name, entry->complete);
+			switch_console_set_complete(complete_cli);
+		}
 	}
 
 	SWITCH_ADD_APP(app_interface, "disable_ec", "Disable Echo Canceller", "Disable Echo Canceller", disable_ec_function, "", SAF_NONE);
@@ -5407,5 +5494,5 @@ SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_freetdm_shutdown)
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

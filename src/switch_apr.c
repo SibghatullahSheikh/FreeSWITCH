@@ -25,6 +25,7 @@
  * 
  * Michael Jerris <mike@jerris.com>
  * Eliot Gable <egable@gmail.com>
+ * William King <william.king@quentustech.com>
  *
  * switch_apr.c -- apr wrappers and extensions
  *
@@ -597,10 +598,6 @@ SWITCH_DECLARE(const char *) switch_dir_next_file(switch_dir_t *thedir, char *bu
 			name = thedir->finfo.name;
 		}
 
-		if (!name) {
-			continue;
-		}
-
 		if (name) {
 			switch_copy_string(buf, name, len);
 			fname = buf;
@@ -1050,13 +1047,7 @@ SWITCH_DECLARE(unsigned int) switch_queue_size(switch_queue_t *queue)
 
 SWITCH_DECLARE(switch_status_t) switch_queue_pop(switch_queue_t *queue, void **data)
 {
-	apr_status_t s;
-
-	do {
-		s = apr_queue_pop(queue, data);
-	} while (s == APR_EINTR);
-
-	return s;
+	return apr_queue_pop(queue, data);
 }
 
 SWITCH_DECLARE(switch_status_t) switch_queue_pop_timeout(switch_queue_t *queue, void **data, switch_interval_time_t timeout)
@@ -1078,14 +1069,7 @@ SWITCH_DECLARE(switch_status_t) switch_queue_push(switch_queue_t *queue, void *d
 
 SWITCH_DECLARE(switch_status_t) switch_queue_trypop(switch_queue_t *queue, void **data)
 {
-	apr_status_t s;
-
-	do {
-		s = apr_queue_trypop(queue, data);
-	} while (s == APR_EINTR);
-
-	return s;
-	
+	return apr_queue_trypop(queue, data);
 }
 
 SWITCH_DECLARE(switch_status_t) switch_queue_interrupt_all(switch_queue_t *queue)
@@ -1267,5 +1251,5 @@ SWITCH_DECLARE(char *) switch_strerror(switch_status_t statcode, char *buf, swit
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

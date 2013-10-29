@@ -74,7 +74,7 @@ generated according to the specification.
 
 The T.30 spec. specifies a number of time-outs. For example, after dialing a number,
 a calling fax system should listen for a response for 35 seconds before giving up.
-These time-out periods are as follows: 
+These time-out periods are as follows:
 
     - T1 - 35+-5s: the maximum time for which two fax system will attempt to identify each other
     - T2 - 6+-1s:  a time-out used to start the sequence for changing transmit parameters
@@ -86,7 +86,7 @@ ignored, sometimes with good reason. For example, after placing a call, the
 calling fax system is supposed to wait for 35 seconds before giving up. If the
 answering unit does not answer on the first ring or if a voice answering machine
 is connected to the line, or if there are many delays through the network,
-the delay before answer can be much longer than 35 seconds. 
+the delay before answer can be much longer than 35 seconds.
 
 Fax units that support error correction mode (ECM) can respond to a post-image
 handshake message with a receiver not ready (RNR) message. The calling unit then
@@ -95,7 +95,7 @@ answering unit is still busy (printing for example), it will repeat the RNR
 message. According to the T.30 standard, this sequence (RR/RNR RR/RNR) can be
 repeated for up to the end of T5 (60+-5s). However, many fax systems
 ignore the time-out and will continue the sequence indefinitely, unless the user
-manually overrides. 
+manually overrides.
 
 All the time-outs are subject to alteration, and sometimes misuse. Good T.30
 implementations must do the right thing, and tolerate others doing the wrong thing.
@@ -109,7 +109,7 @@ violate this requirement, especially for the silent period between DCS and TCF.
 This may be stretched to well over 100ms. If this period is too long, it can interfere with
 handshake signal error recovery, should a packet be corrupted on the line. Systems
 should ensure they stay within the prescribed T.30 limits, and be tolerant of others
-being out of spec.. 
+being out of spec..
 
 \subsection t30_page_sec_2d Other timing variations
 
@@ -118,7 +118,7 @@ variations in the duration of pauses between unacknowledged handshake message
 repetitions, and also in the pauses between the receipt of a handshake command and
 the start of a response to that command. In order to reduce the total
 transmission time, many fax systems start sending a response message before the
-end of the command has been received. 
+end of the command has been received.
 
 \subsection t30_page_sec_2e Other deviations from the T.30 standard
 
@@ -284,11 +284,11 @@ enum
     T30_ERR_BADTAG,             /*! Incorrect values for TIFF/F tags */
     T30_ERR_BADTIFFHDR,         /*! Bad TIFF/F header - incorrect values in fields */
     T30_ERR_NOMEM,              /*! Cannot allocate memory for more pages */
-    
+
     /* General problems */
     T30_ERR_RETRYDCN,           /*! Disconnected after permitted retries */
     T30_ERR_CALLDROPPED,        /*! The call dropped prematurely */
-    
+
     /* Feature negotiation issues */
     T30_ERR_NOPOLL,             /*! Poll not accepted */
     T30_ERR_IDENT_UNACCEPTABLE, /*! Far end's ident is not acceptable */
@@ -325,19 +325,6 @@ enum
 
 enum
 {
-    T30_FRONT_END_SEND_STEP_COMPLETE = 0,
-    /*! The current receive has completed. This is only needed to report an
-        unexpected end of the receive operation, as might happen with T.38
-        dying. */
-    T30_FRONT_END_RECEIVE_COMPLETE,
-    T30_FRONT_END_SIGNAL_PRESENT,
-    T30_FRONT_END_SIGNAL_ABSENT,
-    T30_FRONT_END_CED_PRESENT,
-    T30_FRONT_END_CNG_PRESENT
-};
-
-enum
-{
     /*! Support the V.27ter modem (2400, and 4800bps) for image transfer. */
     T30_SUPPORT_V27TER = 0x01,
     /*! Support the V.29 modem (9600, and 7200bps) for image transfer. */
@@ -352,77 +339,15 @@ enum
 
 enum
 {
-    /*! No compression */
-    T30_SUPPORT_NO_COMPRESSION = 0x01,
-    /*! T.1 1D compression */
-    T30_SUPPORT_T4_1D_COMPRESSION = 0x02,
-    /*! T.4 2D compression */
-    T30_SUPPORT_T4_2D_COMPRESSION = 0x04,
-    /*! T.6 2D compression */
-    T30_SUPPORT_T6_COMPRESSION = 0x08,
-    /*! T.85 monochrome JBIG compression, with fixed L0 */
-    T30_SUPPORT_T85_COMPRESSION = 0x10,
-    /*! T.85 monochrome JBIG compression, with variable L0 */
-    T30_SUPPORT_T85_L0_COMPRESSION = 0x20,
-    /*! T.43 colour JBIG compression */
-    T30_SUPPORT_T43_COMPRESSION = 0x40,
-    /*! T.45 run length colour compression */
-    T30_SUPPORT_T45_COMPRESSION = 0x80,
-    /*! T.81 + T.30 Annex E colour JPEG compression */
-    T30_SUPPORT_T81_COMPRESSION = 0x100,
-    /*! T.81 + T.30 Annex K colour sYCC-JPEG compression */
-    T30_SUPPORT_SYCC_T81_COMPRESSION = 0x200,
-    /*! T.88 monochrome JBIG2 compression */
-    T30_SUPPORT_T88_COMPRESSION = 0x400,
-    /*! Dither a gray scale image down a simple bilevel image, with rescaling to fit a FAX page */
-    T30_SUPPORT_GRAY_TO_BILEVEL = 0x10000000,
-    /*! Dither a colour image down a simple bilevel image, with rescaling to fit a FAX page */
-    T30_SUPPORT_COLOUR_TO_BILEVEL = 0x20000000
-};
-
-enum
-{
-    /*! Support standard FAX Y-resolution 98/100dpi */
-    T30_SUPPORT_STANDARD_RESOLUTION = 0x01,
-    /*! Support fine FAX Y-resolution 196/200dpi */
-    T30_SUPPORT_FINE_RESOLUTION = 0x02,
-    /*! Support super-fine FAX Y-resolution 392/400dpi */
-    T30_SUPPORT_SUPERFINE_RESOLUTION = 0x04,
-
-    /*! Support half FAX X-resolution 100/102dpi */
-    T30_SUPPORT_R4_RESOLUTION = 0x10000,
-    /*! Support standard FAX X-resolution 200/204dpi */
-    T30_SUPPORT_R8_RESOLUTION = 0x20000,
-    /*! Support double FAX X-resolution 400dpi */
-    T30_SUPPORT_R16_RESOLUTION = 0x40000,
-
-    /*! Support 300dpi x 300 dpi */
-    T30_SUPPORT_300_300_RESOLUTION = 0x100000,
-    /*! Support 400dpi x 400 dpi */
-    T30_SUPPORT_400_400_RESOLUTION = 0x200000,
-    /*! Support 600dpi x 600 dpi */
-    T30_SUPPORT_600_600_RESOLUTION = 0x400000,
-    /*! Support 1200dpi x 1200 dpi */
-    T30_SUPPORT_1200_1200_RESOLUTION = 0x800000,
-    /*! Support 300dpi x 600 dpi */
-    T30_SUPPORT_300_600_RESOLUTION = 0x1000000,
-    /*! Support 400dpi x 800 dpi */
-    T30_SUPPORT_400_800_RESOLUTION = 0x2000000,
-    /*! Support 600dpi x 1200 dpi */
-    T30_SUPPORT_600_1200_RESOLUTION = 0x4000000
-};
-
-enum
-{
-    T30_SUPPORT_215MM_WIDTH = 0x01,
-    T30_SUPPORT_255MM_WIDTH = 0x02,
-    T30_SUPPORT_303MM_WIDTH = 0x04,
-
-    T30_SUPPORT_UNLIMITED_LENGTH = 0x10000,
-    T30_SUPPORT_A4_LENGTH = 0x20000,
-    T30_SUPPORT_B4_LENGTH = 0x40000,
-    T30_SUPPORT_US_LETTER_LENGTH = 0x80000,
-    T30_SUPPORT_US_LEGAL_LENGTH = 0x100000
+    T30_FRONT_END_SEND_STEP_COMPLETE = 0,
+    /*! The current receive has completed. This is only needed to report an
+        unexpected end of the receive operation, as might happen with T.38
+        dying. */
+    T30_FRONT_END_RECEIVE_COMPLETE,
+    T30_FRONT_END_SIGNAL_PRESENT,
+    T30_FRONT_END_SIGNAL_ABSENT,
+    T30_FRONT_END_CED_PRESENT,
+    T30_FRONT_END_CNG_PRESENT
 };
 
 enum
@@ -531,18 +456,30 @@ typedef struct
     int pages_rx;
     /*! \brief The number of pages in the file (<0 if not known). */
     int pages_in_file;
-    /*! \brief The horizontal column-to-column resolution of the most recent page, in pixels per metre */
+    /*! \brief The type of image of the most recent file page */
+    int image_type;
+    /*! \brief The horizontal column-to-column resolution of the most recent file page, in pixels per metre */
+    int image_x_resolution;
+    /*! \brief The vertical row-to-row resolution of the most recent file page, in pixels per metre */
+    int image_y_resolution;
+    /*! \brief The number of horizontal pixels in the most recent file page. */
+    int image_width;
+    /*! \brief The number of vertical pixels in the most recent file page. */
+    int image_length;
+    /*! \brief The type of image of the most recent exchanged page */
+    int type;
+    /*! \brief The horizontal column-to-column resolution of the most recent exchanged page, in pixels per metre */
     int x_resolution;
-    /*! \brief The vertical row-to-row resolution of the most recent page, in pixels per metre */
+    /*! \brief The vertical row-to-row resolution of the most recent exchanged page, in pixels per metre */
     int y_resolution;
-    /*! \brief The number of horizontal pixels in the most recent page. */
+    /*! \brief The number of horizontal pixels in the most recent exchanged page. */
     int width;
-    /*! \brief The number of vertical pixels in the most recent page. */
+    /*! \brief The number of vertical pixels in the most recent exchanged page. */
     int length;
     /*! \brief The size of the image, in bytes */
     int image_size;
     /*! \brief The type of compression used between the FAX machines */
-    int encoding;
+    int compression;
     /*! \brief The number of bad pixel rows in the most recent page. */
     int bad_rows;
     /*! \brief The largest number of bad pixel rows in a block in the most recent page. */

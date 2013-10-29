@@ -143,6 +143,7 @@
 #include "switch_pgsql.h"
 #include "switch_json.h"
 #include "switch_limit.h"
+#include "switch_core_media.h"
 #include <libteletone.h>
 
 
@@ -274,5 +275,5 @@
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

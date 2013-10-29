@@ -219,7 +219,7 @@ SPAN_DECLARE_NONSTD(int) fax_tx(fax_state_t *s, int16_t *amp, int max_len)
     int len;
 #if defined(LOG_FAX_AUDIO)
     int required_len;
-    
+
     required_len = max_len;
 #endif
     len = 0;
@@ -236,7 +236,7 @@ SPAN_DECLARE_NONSTD(int) fax_tx(fax_state_t *s, int16_t *amp, int max_len)
                 {
                     /* Pad to the requested length with silence */
                     memset(amp + len, 0, (max_len - len)*sizeof(int16_t));
-                    len = max_len;        
+                    len = max_len;
                 }
                 break;
             }
@@ -248,7 +248,7 @@ SPAN_DECLARE_NONSTD(int) fax_tx(fax_state_t *s, int16_t *amp, int max_len)
         {
             /* Pad to the requested length with silence */
             memset(amp, 0, max_len*sizeof(int16_t));
-            len = max_len;        
+            len = max_len;
         }
     }
 #if defined(LOG_FAX_AUDIO)
@@ -323,12 +323,8 @@ static void fax_set_tx_type(void *user_data, int type, int bit_rate, int short_t
         break;
     case T30_MODEM_CED:
     case T30_MODEM_CNG:
-        if (type == T30_MODEM_CED)
-            tone = MODEM_CONNECT_TONES_FAX_CED;
-        else
-            tone = MODEM_CONNECT_TONES_FAX_CNG;
-        modem_connect_tones_tx_init(&t->connect_tx, tone);
-        fax_modems_set_tx_handler(t, (span_tx_handler_t) &modem_connect_tones_tx, &t->connect_tx);
+        tone = (type == T30_MODEM_CED)  ?  FAX_MODEM_CED_TONE_TX  :  FAX_MODEM_CNG_TONE_TX;
+        fax_modems_start_slow_modem(t, tone);
         fax_modems_set_next_tx_handler(t, (span_tx_handler_t) NULL, NULL);
         t->transmit = TRUE;
         break;

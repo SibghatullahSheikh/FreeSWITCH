@@ -635,7 +635,7 @@ SPAN_DECLARE_NONSTD(int) t38_core_rx_ifp_packet(t38_core_state_t *s, const uint8
                     - 3. the result of a hop in the sequence numbers cause by something weird from the other
                          end. Stream switching might cause this
                     - 4. missing packets.
-    
+
                     In cases 1 and 2 we need to drop this packet. In case 2 it might make sense to try to do
                     something with it in the terminal case. Currently we don't. For gateway operation it will be
                     too late to do anything useful.
@@ -867,7 +867,7 @@ static int t38_encode_data(t38_core_state_t *s, uint8_t buf[], int data_type, co
 
     if (s->data_transport_protocol == T38_TRANSPORT_TCP_TPKT)
     {
-        /* Fill in the TPKT header (se RFC1006) */
+        /* Fill in the TPKT header (see RFC1006) */
         /* Version */
         buf[0] = 3;
         /* Reserved */

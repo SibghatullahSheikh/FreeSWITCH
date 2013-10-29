@@ -246,7 +246,7 @@ static int tx_supervisory_frame(lapm_state_t *s, uint8_t addr, uint8_t ctrl, uin
 {
     v42_frame_t *f;
     uint8_t *buf;
-    
+
     if ((f = get_next_free_ctrl_frame(s)) == NULL)
         return -1;
     buf = f->buf;
@@ -305,9 +305,9 @@ static int receive_xid(v42_state_t *ss, const uint8_t *frame, int len)
                 param_id = buf[0];
                 param_len = buf[1];
                 buf += 2;
-                group_len -= (2 + param_len);
-                if (group_len < 0)
+                if (group_len < (2 + param_len))
                     break;
+                group_len -= (2 + param_len);
                 switch (param_id)
                 {
                 case PI_HDLC_OPTIONAL_FUNCTIONS:
@@ -347,9 +347,9 @@ static int receive_xid(v42_state_t *ss, const uint8_t *frame, int len)
                 param_id = buf[0];
                 param_len = buf[1];
                 buf += 2;
-                group_len -= (2 + param_len);
-                if (group_len < 0)
+                if (group_len < 2 + param_len)
                     break;
+                group_len -= (2 + param_len);
                 switch (param_id)
                 {
                 case PI_PARAMETER_SET_ID:
@@ -438,7 +438,7 @@ static void transmit_xid(v42_state_t *ss, uint8_t addr)
     *buf++ = 2;
     *buf++ = (param_val >> 8) & 0xFF;
     *buf++ = (param_val & 0xFF);
-    
+
     *buf++ = PI_TX_WINDOW_SIZE;
     *buf++ = 1;
     *buf++ = ss->config.v42_tx_window_size_k;
@@ -466,7 +466,7 @@ static void transmit_xid(v42_state_t *ss, uint8_t addr)
         *buf++ = '4';
         *buf++ = '2';
 
-        /* V.42bis P0 
+        /* V.42bis P0
            00 Compression in neither direction (default);
            01 Negotiation initiator-responder direction only;
            10 Negotiation responder-initiator direction only;
@@ -1155,7 +1155,7 @@ static int lapm_config(v42_state_t *ss)
 static void reset_lapm(v42_state_t *ss)
 {
     lapm_state_t *s;
-    
+
     s = &ss->lapm;
     /* Reset the LAP.M state */
     s->local_busy = FALSE;
@@ -1456,6 +1456,12 @@ SPAN_DECLARE(int) v42_get_far_busy_status(v42_state_t *s)
 }
 /*- End of function --------------------------------------------------------*/
 
+SPAN_DECLARE(logging_state_t *) v42_get_logging_state(v42_state_t *s)
+{
+    return &s->logging;
+}
+/*- End of function --------------------------------------------------------*/
+
 SPAN_DECLARE(void) v42_set_status_callback(v42_state_t *s, modem_status_func_t status_handler, void *user_data)
 {
     s->lapm.status_handler = status_handler;
@@ -1548,16 +1554,18 @@ SPAN_DECLARE(v42_state_t *) v42_init(v42_state_t *ss,
 }
 /*- End of function --------------------------------------------------------*/
 
-SPAN_DECLARE(void) v42_release(v42_state_t *s)
+SPAN_DECLARE(int) v42_release(v42_state_t *s)
 {
     reset_lapm(s);
+    return 0;
 }
 /*- End of function --------------------------------------------------------*/
 
-SPAN_DECLARE(void) v42_free(v42_state_t *s)
+SPAN_DECLARE(int) v42_free(v42_state_t *s)
 {
     v42_release(s);
     free(s);
+    return 0;
 }
 /*- End of function --------------------------------------------------------*/
 /*- End of file ------------------------------------------------------------*/

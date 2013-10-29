@@ -251,7 +251,7 @@ static int sangoma_create_rtp(void *usr_priv, sngtc_codec_request_leg_t *codec_r
 	switch_memory_pool_t *sesspool = NULL;
 	switch_rtp_t *rtp_session = NULL;
 	char codec_ip[255];
-	switch_rtp_flag_t flags = 0;
+	switch_rtp_flag_t flags[SWITCH_RTP_FLAG_INVALID] = {0};
 	int iana = 0;
 	const char *err = NULL;
 	struct in_addr local_ip_addr = { 0 };
@@ -1489,5 +1489,5 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_sangoma_codec_load)
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

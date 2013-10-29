@@ -28,9 +28,6 @@
 These tests...
 */
 
-/* Enable the following definition to enable direct probing into the FAX structures */
-//#define WITH_SPANDSP_INTERNALS
-
 #if defined(HAVE_CONFIG_H)
 #include "config.h"
 #endif
@@ -41,10 +38,6 @@ These tests...
 #include <unistd.h>
 #include <string.h>
 #include <sndfile.h>
-
-//#if defined(WITH_SPANDSP_INTERNALS)
-#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
 
 #include "spandsp.h"
 #include "spandsp-sim.h"
@@ -137,7 +130,7 @@ static int preamble_get_bit(void *user_data)
 {
     static int bit_no = 0;
     int bit;
-    
+
     /* Generate a section of HDLC flag octet preamble. Then generate some random
        bits, which should not look like preamble. */
     if (++preamble_count < 255)

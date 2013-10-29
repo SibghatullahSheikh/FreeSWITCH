@@ -116,6 +116,8 @@ SWITCH_STANDARD_APP(record_fsv_function)
 	int count = 0, sanity = 30;
 	switch_core_session_message_t msg = { 0 };
 
+	switch_channel_set_flag(channel, CF_VIDEO_PASSIVE);
+
 	/* Tell the channel to request a fresh vid frame */
 	msg.from = __FILE__;
 	msg.message_id = SWITCH_MESSAGE_INDICATE_VIDEO_REFRESH_REQ;
@@ -138,7 +140,7 @@ SWITCH_STANDARD_APP(record_fsv_function)
 				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, "%s timeout waiting for video.\n", 
 								  switch_channel_get_name(channel));
 				switch_channel_set_variable(channel, SWITCH_CURRENT_APPLICATION_RESPONSE_VARIABLE, "Got timeout while waiting for video");
-				return;
+				goto done;
 			}
 		}
 	}
@@ -146,13 +148,13 @@ SWITCH_STANDARD_APP(record_fsv_function)
 	if (!switch_channel_ready(channel)) {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_CRIT, "%s not ready.\n", switch_channel_get_name(channel));
 		switch_channel_set_variable(channel, SWITCH_CURRENT_APPLICATION_RESPONSE_VARIABLE, "Channel not ready");
-		return;
+		goto done;
 	}
 
 	if ((fd = open((char *) data, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, S_IRUSR | S_IWUSR)) < 0) {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_CRIT, "Error opening file %s\n", (char *) data);
 		switch_channel_set_variable(channel, SWITCH_CURRENT_APPLICATION_RESPONSE_VARIABLE, "Got error while opening file");
-		return;
+		goto done;
 	}
 
 	if (switch_core_codec_init(&codec,
@@ -284,6 +286,10 @@ SWITCH_STANDARD_APP(record_fsv_function)
 	switch_core_session_set_read_codec(session, NULL);
 	switch_core_codec_destroy(&codec);
 
+ done:
+
+	switch_channel_clear_flag(channel, CF_VIDEO_PASSIVE);
+
 }
 
 SWITCH_STANDARD_APP(play_fsv_function)
@@ -306,6 +312,8 @@ SWITCH_STANDARD_APP(play_fsv_function)
 	switch_codec_implementation_t read_impl = { 0 };
 	switch_core_session_message_t msg = { 0 };
 
+	switch_channel_set_flag(channel, CF_VIDEO_PASSIVE);
+
 	/* Tell the channel to request a fresh vid frame */
 	msg.from = __FILE__;
 	msg.message_id = SWITCH_MESSAGE_INDICATE_VIDEO_REFRESH_REQ;
@@ -322,7 +330,7 @@ SWITCH_STANDARD_APP(play_fsv_function)
 	if ((fd = open((char *) data, O_RDONLY | O_BINARY)) < 0) {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_CRIT, "Error opening file %s\n", (char *) data);
 		switch_channel_set_variable(channel, SWITCH_CURRENT_APPLICATION_RESPONSE_VARIABLE, "Got error while opening file");
-		return;
+		goto done;
 	}
 
 	if (read(fd, &h, sizeof(h)) != sizeof(h)) {
@@ -337,7 +345,7 @@ SWITCH_STANDARD_APP(play_fsv_function)
 		goto end;
 	}
 
-	switch_channel_set_variable(channel, "sip_force_video_fmtp", h.video_fmtp);
+	switch_channel_set_variable(channel, "rtp_force_video_fmtp", h.video_fmtp);
 	switch_channel_answer(channel);
 
 	if ((read_vid_codec = switch_core_session_get_video_read_codec(session))) {
@@ -403,6 +411,15 @@ SWITCH_STANDARD_APP(play_fsv_function)
 			switch_rtp_hdr_t *hdr = vid_frame.packet;
 			bytes &= ~VID_BIT;
 
+			/*
+			 * Frame is larger than available buffer space. This error is non-recoverable due to the
+			 * structure of the .fsv format (no frame header signature to re-sync).
+			 */
+			if (bytes > ((int) vid_frame.buflen + 12)) {
+				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Corrupt .fsv video frame header is overflowing read buffer, aborting!\n");
+				break;
+			}
+
 			if ((vid_frame.packetlen = read(fd, vid_frame.packet, bytes)) != (uint32_t) bytes) {
 				break;
 			}
@@ -425,10 +442,15 @@ SWITCH_STANDARD_APP(play_fsv_function)
 			}
 			last = ts;
 		} else {
+			/*
+			 * Frame is larger than available buffer space. This error is non-recoverable due to the
+			 * structure of the .fsv format (no frame header signature to re-sync).
+			 */
 			if (bytes > (int) write_frame.buflen) {
-				bytes = write_frame.buflen;
+				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Corrupt .fsv audio frame header is overflowing read buffer, aborting!\n");
+				break;
 			}
-		    
+
 			if ((write_frame.datalen = read(fd, write_frame.data, bytes)) <= 0) {
 				break;
 			}
@@ -490,6 +512,9 @@ SWITCH_STANDARD_APP(play_fsv_function)
 	if (fd > -1) {
 		close(fd);
 	}
+
+ done:
+	switch_channel_clear_flag(channel, CF_VIDEO_PASSIVE);
 }
 
 struct fsv_file_context {
@@ -780,5 +805,5 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_fsv_load)
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

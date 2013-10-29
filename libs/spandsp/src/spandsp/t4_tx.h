@@ -203,8 +203,12 @@ ImageLayer(34732)                                                   LONG
 #define TIFFTAG_T82OPTIONS              435
 #define TIFFTAG_STRIPROWCOUNTS          559
 #define TIFFTAG_IMAGELAYER              34732
+#endif
 
+#if !defined(COMPRESSION_T85)
 #define     COMPRESSION_T85             9
+#endif
+#if !defined(COMPRESSION_T43)
 #define     COMPRESSION_T43             10
 #endif
 
@@ -216,14 +220,6 @@ extern "C" {
 /*! \brief Configure libtiff so it recognises the extended tag set for TIFF-FX. */
 SPAN_DECLARE(void) TIFF_FX_init(void);
 #endif
-
-/*! \brief Prepare for transmission of a document.
-    \param s The T.4 context.
-    \param file The name of the file to be sent.
-    \param start_page The first page to send. -1 for no restriction.
-    \param stop_page The last page to send. -1 for no restriction.
-    \return A pointer to the context, or NULL if there was a problem. */
-SPAN_DECLARE(t4_tx_state_t *) t4_tx_init(t4_tx_state_t *s, const char *file, int start_page, int stop_page);
 
 /*! \brief Prepare to send the next page of the current document.
     \param s The T.4 context.
@@ -267,22 +263,9 @@ SPAN_DECLARE(int) t4_tx_get_bit(t4_tx_state_t *s);
     \param s The T.4 context.
     \param buf The buffer into which the chunk is to written.
     \param max_len The maximum length of the chunk.
-    \return The actual length of the chunk. If this is less than max_len it 
+    \return The actual length of the chunk. If this is less than max_len it
             indicates that the end of the document has been reached. */
 SPAN_DECLARE(int) t4_tx_get(t4_tx_state_t *s, uint8_t buf[], size_t max_len);
-
-/*! \brief End the transmission of a document. Tidy up and close the file.
-           This should be used to end T.4 transmission started with t4_tx_init.
-    \param s The T.4 context.
-    \return 0 for success, otherwise -1. */
-SPAN_DECLARE(int) t4_tx_release(t4_tx_state_t *s);
-
-/*! \brief End the transmission of a document. Tidy up, close the file and
-           free the context. This should be used to end T.4 transmission
-           started with t4_tx_init.
-    \param s The T.4 context.
-    \return 0 for success, otherwise -1. */
-SPAN_DECLARE(int) t4_tx_free(t4_tx_state_t *s);
 
 /*! \brief Set the encoding for the encoded data.
     \param s The T.4 context.
@@ -358,10 +341,20 @@ SPAN_DECLARE(int) t4_tx_get_y_resolution(t4_tx_state_t *s);
     \return The resolution, in pixels per metre. */
 SPAN_DECLARE(int) t4_tx_get_x_resolution(t4_tx_state_t *s);
 
+/*! \brief Get the X and Y resolution code of the current page.
+    \param s The T.4 context.
+    \return The resolution code,. */
+SPAN_DECLARE(int) t4_tx_get_resolution(t4_tx_state_t *s);
+
 /*! \brief Get the width of the current page, in pixel columns.
     \param s The T.4 context.
     \return The number of columns. */
 SPAN_DECLARE(int) t4_tx_get_image_width(t4_tx_state_t *s);
+
+/*! \brief Get the type of the current page, in pixel columns.
+    \param s The T.4 context.
+    \return The type. */
+SPAN_DECLARE(int) t4_tx_get_image_type(t4_tx_state_t *s);
 
 /*! \brief Get the number of pages in the file.
     \param s The T.4 context.
@@ -373,11 +366,38 @@ SPAN_DECLARE(int) t4_tx_get_pages_in_file(t4_tx_state_t *s);
     \return The page number, or -1 if there is an error. */
 SPAN_DECLARE(int) t4_tx_get_current_page_in_file(t4_tx_state_t *s);
 
-/*! Get the current image transfer statistics. 
+/*! Get the current image transfer statistics.
     \brief Get the current transfer statistics.
     \param s The T.4 context.
     \param t A pointer to a statistics structure. */
 SPAN_DECLARE(void) t4_tx_get_transfer_statistics(t4_tx_state_t *s, t4_stats_t *t);
+
+/*! Get the logging context associated with a T.4 transmit context.
+    \brief Get the logging context associated with a T.4 transmit context.
+    \param s The T.4 transmit context.
+    \return A pointer to the logging context */
+SPAN_DECLARE(logging_state_t *) t4_tx_get_logging_state(t4_tx_state_t *s);
+
+/*! \brief Prepare for transmission of a document.
+    \param s The T.4 context.
+    \param file The name of the file to be sent.
+    \param start_page The first page to send. -1 for no restriction.
+    \param stop_page The last page to send. -1 for no restriction.
+    \return A pointer to the context, or NULL if there was a problem. */
+SPAN_DECLARE(t4_tx_state_t *) t4_tx_init(t4_tx_state_t *s, const char *file, int start_page, int stop_page);
+
+/*! \brief End the transmission of a document. Tidy up and close the file.
+           This should be used to end T.4 transmission started with t4_tx_init.
+    \param s The T.4 context.
+    \return 0 for success, otherwise -1. */
+SPAN_DECLARE(int) t4_tx_release(t4_tx_state_t *s);
+
+/*! \brief End the transmission of a document. Tidy up, close the file and
+           free the context. This should be used to end T.4 transmission
+           started with t4_tx_init.
+    \param s The T.4 context.
+    \return 0 for success, otherwise -1. */
+SPAN_DECLARE(int) t4_tx_free(t4_tx_state_t *s);
 
 #if defined(__cplusplus)
 }

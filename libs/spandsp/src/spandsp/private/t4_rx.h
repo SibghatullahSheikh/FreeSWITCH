@@ -39,7 +39,7 @@ typedef struct
     /*! Image type - bilevel, gray, colour */
     int image_type;
     /*! \brief The compression type for output to the TIFF file. */
-    int output_encoding;
+    int compression;
     /*! \brief The TIFF photometric setting for the current page. */
     uint16_t photo_metric;
     /*! \brief The TIFF fill order setting for the current page. */
@@ -65,21 +65,27 @@ typedef struct
 */
 typedef struct
 {
+    /*! \brief The type of compression used on the wire. */
+    int compression;
+    /*! \brief The width of the current page, in pixels. */
+    uint32_t image_width;
+    /*! \brief The length of the current page, in pixels. */
+    uint32_t image_length;
     /*! \brief Column-to-column (X) resolution in pixels per metre. */
     int x_resolution;
     /*! \brief Row-to-row (Y) resolution in pixels per metre. */
     int y_resolution;
 
     /* "Background" information about the FAX, which can be stored in the image file. */
-    /*! \brief The vendor of the machine which produced the file. */ 
+    /*! \brief The vendor of the machine which produced the file. */
     const char *vendor;
-    /*! \brief The model of machine which produced the file. */ 
+    /*! \brief The model of machine which produced the file. */
     const char *model;
-    /*! \brief The remote end's ident string. */ 
+    /*! \brief The remote end's ident string. */
     const char *far_ident;
-    /*! \brief The FAX sub-address. */ 
+    /*! \brief The FAX sub-address. */
     const char *sub_address;
-    /*! \brief The FAX DCS information, as an ASCII hex string. */ 
+    /*! \brief The FAX DCS information, as an ASCII hex string. */
     const char *dcs;
 } t4_rx_metadata_t;
 
@@ -94,27 +100,37 @@ struct t4_rx_state_s
     /*! \brief Opaque pointer passed to row_write_handler. */
     void *row_handler_user_data;
 
+    /*! \brief A bit mask of the currently supported image compression modes for writing
+               to the TIFF file. */
+    int supported_tiff_compressions;
+
     /*! \brief The number of pages transferred to date. */
     int current_page;
 
     /*! \brief The size of the compressed image on the line side, in bits. */
     int line_image_size;
 
-    /*! \brief The type of compression used between the FAX machines. */
-    int line_encoding;
-    
-    /*! \brief The width of the current page, in pixels. */
-    uint32_t image_width;
-
     union
     {
         t4_t6_decode_state_t t4_t6;
+        t85_decode_state_t t85;
+#if defined(SPANDSP_SUPPORT_T88)
+        t88_decode_state_t t88;
+#endif
         t42_decode_state_t t42;
 #if defined(SPANDSP_SUPPORT_T43)
         t43_decode_state_t t43;
 #endif
-        t85_decode_state_t t85;
+#if defined(SPANDSP_SUPPORT_T45)
+        t45_decode_state_t t45;
+#endif
     } decoder;
+    int current_decoder;
+
+    uint8_t *pre_encoded_buf;
+    int pre_encoded_len;
+    int pre_encoded_ptr;
+    int pre_encoded_bit;
 
     /* Supporting information, like resolutions, which the backend may want. */
     t4_rx_metadata_t metadata;

@@ -184,7 +184,7 @@ static switch_status_t handle_msg_fetch_reply(listener_t *listener, ei_x_buff * 
 					/* alright, we've got the lock and we're the first to reply */
 
 					/* clone the reply so it doesn't get destroyed on us */
-					ei_x_buff *nbuf = malloc(sizeof(nbuf));
+					ei_x_buff *nbuf = malloc(sizeof(*nbuf));
 					nbuf->buff = malloc(buf->buffsz);
 					memcpy(nbuf->buff, buf->buff, buf->buffsz);
 					nbuf->index = buf->index;
@@ -660,11 +660,13 @@ static switch_status_t handle_msg_api(listener_t *listener, erlang_msg * msg, in
 	}
 }
 
+#define ARGLEN 2048
 static switch_status_t handle_msg_bgapi(listener_t *listener, erlang_msg * msg, int arity, ei_x_buff * buf, ei_x_buff * rbuf)
 {
 	char api_cmd[MAXATOMLEN];
-	char arg[1024];
-	if (arity < 3 || ei_decode_atom(buf->buff, &buf->index, api_cmd) || ei_decode_string_or_binary(buf->buff, &buf->index, 1023, arg)) {
+	char arg[ARGLEN];
+
+	if (arity < 3 || ei_decode_atom(buf->buff, &buf->index, api_cmd) || ei_decode_string_or_binary(buf->buff, &buf->index, ARGLEN - 1, arg)) {
 		ei_x_encode_tuple_header(rbuf, 2);
 		ei_x_encode_atom(rbuf, "error");
 		ei_x_encode_atom(rbuf, "badarg");
@@ -763,6 +765,10 @@ static switch_status_t handle_msg_sendevent(listener_t *listener, int arity, ei_
 					switch_event_fire(&event);
 					ei_x_encode_atom(rbuf, "ok");
 				}
+			}
+			/* If the event wasn't successfully fired, or failed for any other reason, then make sure not to leak it. */
+			if ( event ) {
+				switch_event_destroy(&event);
 			}
 		}
 	}
@@ -1146,6 +1152,7 @@ static switch_status_t handle_ref_tuple(listener_t *listener, erlang_msg * msg, 
 			se->spawn_reply->pid = switch_core_alloc(se->pool, sizeof(erlang_pid));
 			switch_assert(se->spawn_reply->pid != NULL);
 			memcpy(se->spawn_reply->pid, &pid, sizeof(erlang_pid));
+
 			switch_thread_cond_signal(se->spawn_reply->ready_or_found);
 
 			switch_mutex_unlock(se->spawn_reply->mutex);
@@ -1330,5 +1337,5 @@ int handle_msg(listener_t *listener, erlang_msg * msg, ei_x_buff * buf, ei_x_buf
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

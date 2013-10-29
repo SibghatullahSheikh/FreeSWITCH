@@ -597,7 +597,9 @@ static void send_disconnect(listener_t *listener, const char *message)
 	} else {
 		switch_snprintf(disco_buf, sizeof(disco_buf), "Content-Type: text/disconnect-notice\nContent-Length: %d\n\n", mlen);
 	}
-	
+
+	if (!listener->sock) return;
+
 	len = strlen(disco_buf);
 	switch_socket_send(listener->sock, disco_buf, &len);
 	if (len > 0) {
@@ -2789,6 +2791,13 @@ SWITCH_MODULE_RUNTIME_FUNCTION(mod_event_socket_runtime)
 		rv = switch_socket_opt_set(listen_list.sock, SWITCH_SO_REUSEADDR, 1);
 		if (rv)
 			goto sock_fail;
+#ifdef WIN32
+		/* Enable dual-stack listening on Windows (if the listening address is IPv6), it's default on Linux */
+		if (switch_sockaddr_get_family(sa) == AF_INET6) {
+			rv = switch_socket_opt_set(listen_list.sock, 16384, 0);
+			if (rv) goto sock_fail;
+		}
+#endif
 		rv = switch_socket_bind(listen_list.sock, sa);
 		if (rv)
 			goto sock_fail;
@@ -2904,5 +2913,5 @@ SWITCH_MODULE_RUNTIME_FUNCTION(mod_event_socket_runtime)
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

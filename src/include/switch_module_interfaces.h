@@ -351,6 +351,8 @@ struct switch_file_handle {
 	char *file_path;
 	char *spool_path;
 	const char *prefix;
+	int max_samples;
+	switch_event_t *params;
 };
 
 /*! \brief Abstract interface to an asr module */
@@ -759,5 +761,5 @@ SWITCH_END_EXTERN_C
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

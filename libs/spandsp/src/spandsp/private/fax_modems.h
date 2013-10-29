@@ -35,6 +35,10 @@ struct fax_modems_state_s
 {
     /*! TRUE is talker echo protection should be sent for the image modems */
     int use_tep;
+    /*! \brief The callback function used to report detected tones. */
+    tone_report_func_t tone_callback;
+    /*! \brief A user specified opaque pointer passed to the tone_callback function. */
+    void *tone_callback_user_data;
 
     /*! If TRUE, transmit silence when there is nothing else to transmit. If FALSE return only
         the actual generated audio. Note that this only affects untimed silences. Timed silences
@@ -131,8 +135,8 @@ struct fax_modems_state_s
     span_tx_handler_t tx_handler;
     void *tx_user_data;
 
-    /*! The next transmit signal handler, for two stage transmit operations.
-        E.g. a short silence followed by a modem signal. */
+    /*! \brief The next transmit signal handler, for two stage transmit operations.
+               E.g. a short silence followed by a modem signal. */
     span_tx_handler_t next_tx_handler;
     void *next_tx_user_data;
 

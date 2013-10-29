@@ -62,7 +62,7 @@ static __inline__ int flag_is_changeable_p(uint32_t flag)
     uint32_t f1;
     uint32_t f2;
 
-    __asm__ __volatile__ (
+    __asm__ __volatile__(
         " pushfl\n"
         " pushfl\n"
         " popl %0\n"
@@ -75,7 +75,6 @@ static __inline__ int flag_is_changeable_p(uint32_t flag)
         " popfl\n"
         : "=&r" (f1), "=&r" (f2)
         : "ir" (flag));
-
     return ((f1^f2) & flag) != 0;
 }
 /*- End of function --------------------------------------------------------*/
@@ -94,23 +93,23 @@ int has_MMX(void)
     if (!have_cpuid_p())
         return 0;
     /*endif*/
-    __asm__ __volatile__ (
+    __asm__ __volatile__(
         " push  %%ebx;\n"
-	" mov	$1,%%eax;\n"
-	" cpuid;\n"
-	" xor   %%eax,%%eax;\n"
-	" test	$0x800000,%%edx;\n"
-	" jz	1f;\n"	            /* no MMX support */
-	" inc   %%eax;\n"	    /* MMX support */
+        " mov    $1,%%eax;\n"
+        " cpuid;\n"
+        " xor   %%eax,%%eax;\n"
+        " test    $0x800000,%%edx;\n"
+        " jz    1f;\n"                /* no MMX support */
+        " inc   %%eax;\n"        /* MMX support */
         "1:\n"
         " pop  %%ebx;\n"
-	: "=a" (result)
-        : 
+        : "=a" (result)
+        :
         : "ecx", "edx");
     return result;
 }
 /*- End of function --------------------------------------------------------*/
-        
+
 int has_SIMD(void)
 {
     int result;
@@ -118,18 +117,18 @@ int has_SIMD(void)
     if (!have_cpuid_p())
         return 0;
     /*endif*/
-    __asm__ __volatile__ (
+    __asm__ __volatile__(
         " push  %%ebx;\n"
-	" mov	$1,%%eax;\n"
-	" cpuid;\n"
-	" xor   %%eax,%%eax;\n"
-	" test	$0x02000000,%%edx;\n"
-	" jz	1f;\n"		        /* no SIMD support */
-	" inc	%%eax;\n"		/* SIMD support */
+        " mov    $1,%%eax;\n"
+        " cpuid;\n"
+        " xor   %%eax,%%eax;\n"
+        " test    $0x02000000,%%edx;\n"
+        " jz    1f;\n"                /* no SIMD support */
+        " inc    %%eax;\n"        /* SIMD support */
         "1:\n"
         " pop  %%ebx;\n"
-	: "=a" (result)
-        : 
+        : "=a" (result)
+        :
         : "ecx", "edx");
     return result;
 }
@@ -142,23 +141,23 @@ int has_SIMD2(void)
     if (!have_cpuid_p())
         return 0;
     /*endif*/
-    __asm__ __volatile__ (
+    __asm__ __volatile__(
         " push  %%ebx;\n"
-	" mov	$1,%%eax;\n"
-	" cpuid;\n"
-	" xor   %%eax,%%eax;\n"
-	" test	$0x04000000,%%edx;\n"
-	" jz	1f;\n"		        /* no SIMD2 support */
-	" inc	%%eax;\n"		/* SIMD2 support */
+        " mov    $1,%%eax;\n"
+        " cpuid;\n"
+        " xor   %%eax,%%eax;\n"
+        " test    $0x04000000,%%edx;\n"
+        " jz    1f;\n"                /* no SIMD2 support */
+        " inc    %%eax;\n"        /* SIMD2 support */
         "1:\n"
         " pop  %%ebx;\n"
-	: "=a" (result)
-        : 
+        : "=a" (result)
+        :
         : "ecx", "edx");
     return result;
 }
 /*- End of function --------------------------------------------------------*/
-        
+
 int has_3DNow(void)
 {
     int result;
@@ -166,23 +165,23 @@ int has_3DNow(void)
     if (!have_cpuid_p())
         return 0;
     /*endif*/
-    __asm__ __volatile__ (
+    __asm__ __volatile__(
         " push  %%ebx;\n"
-	" mov	$0x80000000,%%eax;\n"
-	" cpuid;\n"
+        " mov    $0x80000000,%%eax;\n"
+        " cpuid;\n"
         " xor   %%ecx,%%ecx;\n"
-	" cmp	$0x80000000,%%eax;\n"
-	" jbe	1f;\n"		        /* no extended MSR(1), so no 3DNow! */
-	" mov	$0x80000001,%%eax;\n"
-	" cpuid;\n"
+        " cmp    $0x80000000,%%eax;\n"
+        " jbe    1f;\n"                /* no extended MSR(1), so no 3DNow! */
+        " mov    $0x80000001,%%eax;\n"
+        " cpuid;\n"
         " xor   %%ecx,%%ecx;\n"
-	" test	$0x80000000,%%edx;\n"
-	" jz	1f;\n"		        /* no 3DNow! support */
-	" inc   %%ecx;\n"		/* 3DNow! support */
+        " test    $0x80000000,%%edx;\n"
+        " jz    1f;\n"                /* no 3DNow! support */
+        " inc   %%ecx;\n"        /* 3DNow! support */
         "1:\n"
         " pop  %%ebx;\n"
-	: "=c" (result)
-        : 
+        : "=c" (result)
+        :
         : "eax", "edx");
     return result;
 }
