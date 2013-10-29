@@ -49,10 +49,6 @@ of the degradation in quality caused by the compression.
 #include <time.h>
 #include <sndfile.h>
 
-//#if defined(WITH_SPANDSP_INTERNALS)
-#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
-
 #include "spandsp.h"
 #include "spandsp-sim.h"
 
@@ -140,7 +136,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "    Cannot create encoder\n");
         exit(2);
     }
-        
+
     if ((ima_dec_state = ima_adpcm_init(NULL, variant, enc_chunk_size)) == NULL)
     {
         fprintf(stderr, "    Cannot create decoder\n");
@@ -207,7 +203,7 @@ int main(int argc, char *argv[])
         printf("Tests failed.\n");
         exit(2);
     }
-    
+
     printf("Tests passed.\n");
     return 0;
 }

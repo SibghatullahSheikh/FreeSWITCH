@@ -352,10 +352,12 @@ opal
 /libwebsockets/m4/ltversion.m4
 /libwebsockets/m4/lt~obsolete.m4
 /libwebsockets/stamp-h1
+/libwebsockets/compile
 /libwebsockets/test-server/Makefile
 /libwebsockets/test-server/Makefile.in
 /mongo-cxx-driver-v*/
 /mpg123/
+/libmpg123/
 /openldap-*/
 /openssl-*/
 /openzap/build/compile
@@ -382,6 +384,7 @@ opal
 /portaudio/lib-stamp
 /portaudio/Makefile
 /pthreads-w32-2-7-0-release/
+/pthreads-w32-2-9-1/
 /silk/compile
 /silk/Decoder
 /silk/Encoder
@@ -917,6 +920,8 @@ opal
 /xmlrpc-c/tools/lib/blddir
 /xmlrpc-c/tools/lib/depend.mk
 /xmlrpc-c/tools/lib/srcdir
+/sipcc/Makefile
+/sipcc/Makefile.in
 
 /yaml/
 /yaml/config.h

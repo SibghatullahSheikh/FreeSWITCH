@@ -109,7 +109,14 @@ typedef __int8 int8_t;
 #include <fcntl.h>
 #include <math.h>
 #if !defined(powf) && !defined(_WIN64)
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 28251)
+#endif
 extern float powf (float, float);
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 #endif
 #include <string.h>
 #include <errno.h>
@@ -314,5 +321,5 @@ TELETONE_API(int) teletone_run(teletone_generation_session_t *ts, const char *cm
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

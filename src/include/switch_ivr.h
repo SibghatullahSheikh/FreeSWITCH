@@ -277,6 +277,7 @@ SWITCH_DECLARE(switch_status_t) switch_ivr_detect_speech_start_input_timers(swit
   \return SWITCH_STATUS_SUCCESS if all is well
 */
 SWITCH_DECLARE(switch_status_t) switch_ivr_record_session(switch_core_session_t *session, char *file, uint32_t limit, switch_file_handle_t *fh);
+SWITCH_DECLARE(switch_status_t) switch_ivr_transfer_recordings(switch_core_session_t *orig_session, switch_core_session_t *new_session);
 
 
 SWITCH_DECLARE(switch_status_t) switch_ivr_eavesdrop_pop_eavesdropper(switch_core_session_t *session, switch_core_session_t **sessionp);
@@ -358,7 +359,7 @@ SWITCH_DECLARE(switch_status_t) switch_ivr_stop_inband_dtmf_generate_session(swi
   \brief - NEEDDESC -
   \param session the session to act on
 */
-SWITCH_DECLARE(void) switch_ivr_session_echo(switch_core_session_t *session, switch_input_args_t *args);
+SWITCH_DECLARE(switch_status_t) switch_ivr_session_echo(switch_core_session_t *session, switch_input_args_t *args);
 
 /*!
   \brief Stop looking for TONES
@@ -590,6 +591,15 @@ SWITCH_DECLARE(switch_status_t) switch_ivr_nomedia(const char *uuid, switch_medi
   \return SWITCH_STATUS_SUCCESS if all is well
 */
 SWITCH_DECLARE(switch_status_t) switch_ivr_hold_uuid(const char *uuid, const char *message, switch_bool_t moh);
+
+/*!
+  \brief Toggles channel hold state of session
+  \param uuid the uuid of the session to hold
+  \param message optional message
+  \param moh play music-on-hold
+  \return SWITCH_STATUS_SUCCESS if all is well
+*/
+SWITCH_DECLARE(switch_status_t) switch_ivr_hold_toggle_uuid(const char *uuid, const char *message, switch_bool_t moh);
 
 /*!
   \brief Signal the session with a protocol specific unhold message.
@@ -972,6 +982,7 @@ SWITCH_DECLARE(switch_status_t) switch_ivr_create_message_reply(switch_event_t *
 SWITCH_DECLARE(char *) switch_ivr_check_presence_mapping(const char *exten_name, const char *domain_name);
 SWITCH_DECLARE(switch_status_t) switch_ivr_kill_uuid(const char *uuid, switch_call_cause_t cause);
 SWITCH_DECLARE(switch_status_t) switch_ivr_blind_transfer_ack(switch_core_session_t *session, switch_bool_t success);
+SWITCH_DECLARE(switch_status_t) switch_ivr_record_session_mask(switch_core_session_t *session, const char *file, switch_bool_t on);
 
 /** @} */
 
@@ -985,5 +996,5 @@ SWITCH_END_EXTERN_C
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

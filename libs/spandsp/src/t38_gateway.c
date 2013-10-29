@@ -321,16 +321,14 @@ static int set_next_tx_type(t38_gateway_state_t *s)
         break;
     case T38_IND_CNG:
         t->tx_bit_rate = 0;
-        modem_connect_tones_tx_init(&t->connect_tx, MODEM_CONNECT_TONES_FAX_CNG);
+        fax_modems_start_slow_modem(t, FAX_MODEM_CNG_TONE_TX);
         silence_gen_set(&t->silence_gen, 0);
-        fax_modems_set_tx_handler(t, (span_tx_handler_t) &modem_connect_tones_tx, &t->connect_tx);
         fax_modems_set_next_tx_handler(t, (span_tx_handler_t) &silence_gen, &t->silence_gen);
         fax_modems_set_rx_active(t, TRUE);
         break;
     case T38_IND_CED:
         t->tx_bit_rate = 0;
-        modem_connect_tones_tx_init(&t->connect_tx, MODEM_CONNECT_TONES_FAX_CED);
-        fax_modems_set_tx_handler(t, (span_tx_handler_t) &modem_connect_tones_tx, &t->connect_tx);
+        fax_modems_start_slow_modem(t, FAX_MODEM_CED_TONE_TX);
         fax_modems_set_next_tx_handler(t, (span_tx_handler_t) NULL, NULL);
         fax_modems_set_rx_active(t, TRUE);
         break;
@@ -781,7 +779,7 @@ static void queue_missing_indicator(t38_gateway_state_t *s, int data_type)
     t38_core_state_t *t;
     int expected;
     int expected_alt;
-    
+
     t = &s->t38x.t38;
     expected = -1;
     expected_alt = -1;
@@ -863,7 +861,7 @@ static void queue_missing_indicator(t38_gateway_state_t *s, int data_type)
 static int process_rx_missing(t38_core_state_t *t, void *user_data, int rx_seq_no, int expected_seq_no)
 {
     t38_gateway_state_t *s;
-    
+
     s = (t38_gateway_state_t *) user_data;
     s->core.hdlc_to_modem.buf[s->core.hdlc_to_modem.in].flags |= HDLC_FLAG_MISSING_DATA;
     return 0;
@@ -937,9 +935,55 @@ static int process_rx_indicator(t38_core_state_t *t, void *user_data, int indica
 }
 /*- End of function --------------------------------------------------------*/
 
+static void process_hdlc_data(t38_gateway_state_t *s, int data_type, const uint8_t *buf, int len)
+{
+    t38_gateway_hdlc_buf_t *hdlc_buf;
+    int i;
+
+    hdlc_buf = &s->core.hdlc_to_modem.buf[s->core.hdlc_to_modem.in];
+    /* Check if this data would overflow the buffer. */
+    if (hdlc_buf->len + len > T38_MAX_HDLC_LEN)
+    {
+        s->core.hdlc_to_modem.buf[s->core.hdlc_to_modem.in].flags |= HDLC_FLAG_MISSING_DATA;
+        return;
+    }
+    /*endif*/
+    hdlc_buf->contents = (data_type | FLAG_DATA);
+    bit_reverse(&hdlc_buf->buf[hdlc_buf->len], buf, len);
+    /* We need to send out the control messages as they are arriving. They are
+       too slow to capture a whole frame before starting to pass it on.
+       For the faster frames, take in the whole frame before sending it out. Also, there
+       is no need to monitor, or modify, the contents of the faster frames. */
+    if (data_type == T38_DATA_V21)
+    {
+        for (i = 1;  i <= len;  i++)
+            edit_control_messages(s, 0, hdlc_buf->buf, hdlc_buf->len + i);
+        /*endfor*/
+        /* Don't start pumping data into the actual output stream until there is
+           enough backlog to create some elasticity for jitter tolerance. */
+        if (hdlc_buf->len + len >= HDLC_START_BUFFER_LEVEL)
+        {
+            if (s->core.hdlc_to_modem.in == s->core.hdlc_to_modem.out)
+            {
+                /* Output is not running, so kick it into life. */
+                if ((hdlc_buf->flags & HDLC_FLAG_PROCEED_WITH_OUTPUT) == 0)
+                    hdlc_tx_frame(&s->audio.modems.hdlc_tx, hdlc_buf->buf, hdlc_buf->len + len);
+                else
+                    hdlc_tx_frame(&s->audio.modems.hdlc_tx, hdlc_buf->buf + hdlc_buf->len, len);
+                /*endif*/
+            }
+            /*endif*/
+            hdlc_buf->flags |= HDLC_FLAG_PROCEED_WITH_OUTPUT;
+        }
+        /*endif*/
+    }
+    /*endif*/
+    hdlc_buf->len += len;
+}
+/*- End of function --------------------------------------------------------*/
+
 static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, int field_type, const uint8_t *buf, int len)
 {
-    int i;
     t38_gateway_state_t *s;
     t38_gateway_t38_state_t *xx;
     t38_gateway_hdlc_buf_t *hdlc_buf;
@@ -986,7 +1030,7 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
             {
                 xx->t38.v34_rate = t38_v34rate_to_bps(buf, len);
                 span_log(&s->logging, SPAN_LOG_FLOW, "V.34 rate %d bps\n", xx->t38.v34_rate);
-            }   
+            }
             else
             {
                 span_log(&s->logging, SPAN_LOG_FLOW, "Bad length for V34rate message - %d\n", len);
@@ -1018,47 +1062,9 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
             hdlc_buf = &s->core.hdlc_to_modem.buf[s->core.hdlc_to_modem.in];
         }
         /*endif*/
-        /* Check if this data would overflow the buffer. */
-        if (len <= 0)
-            break;
+        if (len > 0)
+            process_hdlc_data(s, data_type, buf, len);
         /*endif*/
-        if (hdlc_buf->len + len > T38_MAX_HDLC_LEN)
-        {
-            s->core.hdlc_to_modem.buf[s->core.hdlc_to_modem.in].flags |= HDLC_FLAG_MISSING_DATA;
-            break;
-        }
-        /*endif*/
-        hdlc_buf->contents = (data_type | FLAG_DATA);
-        bit_reverse(&hdlc_buf->buf[hdlc_buf->len], buf, len);
-        /* We need to send out the control messages as they are arriving. They are
-           too slow to capture a whole frame before starting to pass it on.
-           For the faster frames, take in the whole frame before sending it out. Also, there
-           is no need to monitor, or modify, the contents of the faster frames. */
-        if (data_type == T38_DATA_V21)
-        {
-            for (i = 1;  i <= len;  i++)
-                edit_control_messages(s, 0, hdlc_buf->buf, hdlc_buf->len + i);
-            /*endfor*/
-            /* Don't start pumping data into the actual output stream until there is
-               enough backlog to create some elasticity for jitter tolerance. */
-            if (hdlc_buf->len + len >= HDLC_START_BUFFER_LEVEL)
-            {
-                if (s->core.hdlc_to_modem.in == s->core.hdlc_to_modem.out)
-                {
-                    /* Output is not running, so kick it into life. */
-                    if ((hdlc_buf->flags & HDLC_FLAG_PROCEED_WITH_OUTPUT) == 0)
-                        hdlc_tx_frame(&s->audio.modems.hdlc_tx, hdlc_buf->buf, hdlc_buf->len + len);
-                    else
-                        hdlc_tx_frame(&s->audio.modems.hdlc_tx, hdlc_buf->buf + hdlc_buf->len, len);
-                    /*endif*/
-                }
-                /*endif*/
-                hdlc_buf->flags |= HDLC_FLAG_PROCEED_WITH_OUTPUT;
-            }
-            /*endif*/
-        }
-        /*endif*/
-        s->core.hdlc_to_modem.buf[s->core.hdlc_to_modem.in].len += len;
         break;
     case T38_FIELD_HDLC_FCS_OK:
         xx->current_rx_field_class = T38_FIELD_CLASS_HDLC;
@@ -1066,16 +1072,17 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
         if (len > 0)
         {
             span_log(&s->logging, SPAN_LOG_WARNING, "There is data in a T38_FIELD_HDLC_FCS_OK!\n");
-            /* The sender has incorrectly included data in this message. It is unclear what we should do
-               with it, to maximise tolerance of buggy implementations. */
+            /* The sender has incorrectly included data in this message. Cisco implemented inserting
+               HDLC data here and Commetrex followed for compatibility reasons. We should, too. */
+            process_hdlc_data(s, data_type, buf, len);
         }
         /*endif*/
         /* Some T.38 implementations send multiple T38_FIELD_HDLC_FCS_OK messages, in IFP packets with
            incrementing sequence numbers, which are actually repeats. They get through to this point because
            of the incrementing sequence numbers. We need to filter them here in a context sensitive manner. */
-        if (t->current_rx_data_type != data_type  ||  t->current_rx_field_type != field_type)
+        if (hdlc_buf->len > 0)
         {
-            span_log(&s->logging, SPAN_LOG_FLOW, "HDLC frame type %s - CRC good\n", t30_frametype(hdlc_buf->buf[2]));
+            span_log(&s->logging, SPAN_LOG_FLOW, "HDLC frame type %s - CRC OK\n", t30_frametype(hdlc_buf->buf[2]));
             if (hdlc_buf->contents != (data_type | FLAG_DATA))
             {
                 queue_missing_indicator(s, data_type);
@@ -1105,6 +1112,11 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
             hdlc_buf->contents = (data_type | FLAG_DATA);
             finalise_hdlc_frame(s, TRUE);
         }
+        else
+        {
+            /* Just restart using the current frame buffer */
+            hdlc_buf->contents = 0;
+        }
         /*endif*/
         xx->corrupt_current_frame[0] = FALSE;
         break;
@@ -1114,34 +1126,30 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
         if (len > 0)
         {
             span_log(&s->logging, SPAN_LOG_WARNING, "There is data in a T38_FIELD_HDLC_FCS_BAD!\n");
-            /* The sender has incorrectly included data in this message. We can safely ignore it, as the
-               bad FCS means we will throw away the whole message, anyway. */
+            /* The sender has incorrectly included data in this message. Cisco implemented inserting
+               HDLC data here and Commetrex followed for compatibility reasons. We should, too. */
+            process_hdlc_data(s, data_type, buf, len);
         }
         /*endif*/
         /* Some T.38 implementations send multiple T38_FIELD_HDLC_FCS_BAD messages, in IFP packets with
            incrementing sequence numbers, which are actually repeats. They get through to this point because
            of the incrementing sequence numbers. We need to filter them here in a context sensitive manner. */
-        if (t->current_rx_data_type != data_type  ||  t->current_rx_field_type != field_type)
+        if (hdlc_buf->len > 0)
         {
             span_log(&s->logging, SPAN_LOG_FLOW, "HDLC frame type %s - CRC bad\n", t30_frametype(hdlc_buf->buf[2]));
-            /* Only bother with frames that have a bad CRC, if they also have some content. */
-            if (hdlc_buf->len > 0)
+            if (hdlc_buf->contents != (data_type | FLAG_DATA))
             {
-                if (hdlc_buf->contents != (data_type | FLAG_DATA))
-                {
-                    queue_missing_indicator(s, data_type);
-                    hdlc_buf = &s->core.hdlc_to_modem.buf[s->core.hdlc_to_modem.in];
-                }
-                /*endif*/
-                hdlc_buf->contents = (data_type | FLAG_DATA);
-                finalise_hdlc_frame(s, FALSE);
-            }
-            else
-            {
-                /* Just restart using the current frame buffer */
-                hdlc_buf->contents = 0;
+                queue_missing_indicator(s, data_type);
+                hdlc_buf = &s->core.hdlc_to_modem.buf[s->core.hdlc_to_modem.in];
             }
             /*endif*/
+            hdlc_buf->contents = (data_type | FLAG_DATA);
+            finalise_hdlc_frame(s, FALSE);
+        }
+        else
+        {
+            /* Just restart using the current frame buffer */
+            hdlc_buf->contents = 0;
         }
         /*endif*/
         xx->corrupt_current_frame[0] = FALSE;
@@ -1152,14 +1160,15 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
         if (len > 0)
         {
             span_log(&s->logging, SPAN_LOG_WARNING, "There is data in a T38_FIELD_HDLC_FCS_OK_SIG_END!\n");
-            /* The sender has incorrectly included data in this message. It is unclear what we should do
-               with it, to maximise tolerance of buggy implementations. */
+            /* The sender has incorrectly included data in this message. Cisco implemented inserting
+               HDLC data here and Commetrex followed for compatibility reasons. We should, too. */
+            process_hdlc_data(s, data_type, buf, len);
         }
         /*endif*/
         /* Some T.38 implementations send multiple T38_FIELD_HDLC_FCS_OK_SIG_END messages, in IFP packets with
            incrementing sequence numbers, which are actually repeats. They get through to this point because
            of the incrementing sequence numbers. We need to filter them here in a context sensitive manner. */
-        if (t->current_rx_data_type != data_type  ||  t->current_rx_field_type != field_type)
+        if (hdlc_buf->len > 0)
         {
             span_log(&s->logging, SPAN_LOG_FLOW, "HDLC frame type %s - CRC OK, sig end\n", t30_frametype(hdlc_buf->buf[2]));
             if (hdlc_buf->contents != (data_type | FLAG_DATA))
@@ -1190,6 +1199,15 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
             /*endif*/
             hdlc_buf->contents = (data_type | FLAG_DATA);
             finalise_hdlc_frame(s, TRUE);
+        }
+        else
+        {
+            /* Just restart using the current frame buffer */
+            hdlc_buf->contents = 0;
+        }
+        /*endif*/
+        if (t->current_rx_data_type != data_type  ||  t->current_rx_field_type != field_type)
+        {
             queue_missing_indicator(s, T38_DATA_NONE);
             xx->current_rx_field_class = T38_FIELD_CLASS_NONE;
         }
@@ -1202,14 +1220,15 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
         if (len > 0)
         {
             span_log(&s->logging, SPAN_LOG_WARNING, "There is data in a T38_FIELD_HDLC_FCS_BAD_SIG_END!\n");
-            /* The sender has incorrectly included data in this message. We can safely ignore it, as the
-               bad FCS means we will throw away the whole message, anyway. */
+            /* The sender has incorrectly included data in this message. Cisco implemented inserting
+               HDLC data here and Commetrex followed for compatibility reasons. We should, too. */
+            process_hdlc_data(s, data_type, buf, len);
         }
         /*endif*/
         /* Some T.38 implementations send multiple T38_FIELD_HDLC_FCS_BAD_SIG_END messages, in IFP packets with
            incrementing sequence numbers, which are actually repeats. They get through to this point because
            of the incrementing sequence numbers. We need to filter them here in a context sensitive manner. */
-        if (t->current_rx_data_type != data_type  ||  t->current_rx_field_type != field_type)
+        if (hdlc_buf->len > 0)
         {
             span_log(&s->logging, SPAN_LOG_FLOW, "HDLC frame type %s - CRC bad, sig end\n", t30_frametype(hdlc_buf->buf[2]));
             if (hdlc_buf->contents != (data_type | FLAG_DATA))
@@ -1218,18 +1237,17 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
                 hdlc_buf = &s->core.hdlc_to_modem.buf[s->core.hdlc_to_modem.in];
             }
             /*endif*/
-            /* Only bother with frames that have a bad CRC, if they also have some content. */
-            if (hdlc_buf->len > 0)
-            {
-                hdlc_buf->contents = (data_type | FLAG_DATA);
-                finalise_hdlc_frame(s, FALSE);
-            }
-            else
-            {
-                /* Just restart using the current frame buffer */
-                hdlc_buf->contents = 0;
-            }
-            /*endif*/
+            hdlc_buf->contents = (data_type | FLAG_DATA);
+            finalise_hdlc_frame(s, FALSE);
+        }
+        else
+        {
+            /* Just restart using the current frame buffer */
+            hdlc_buf->contents = 0;
+        }
+        /*endif*/
+        if (t->current_rx_data_type != data_type  ||  t->current_rx_field_type != field_type)
+        {
             queue_missing_indicator(s, T38_DATA_NONE);
             xx->current_rx_field_class = T38_FIELD_CLASS_NONE;
         }
@@ -1266,7 +1284,7 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
             }
             else
             {
-                /* This message is expected under 2 circumstances. One is as an alternative to T38_FIELD_HDLC_FCS_OK_SIG_END - 
+                /* This message is expected under 2 circumstances. One is as an alternative to T38_FIELD_HDLC_FCS_OK_SIG_END -
                    i.e. they send T38_FIELD_HDLC_FCS_OK, and then T38_FIELD_HDLC_SIG_END when the carrier actually drops.
                    The other is because the HDLC signal drops unexpectedly - i.e. not just after a final frame. In
                    this case we just clear out any partial frame data that might be in the buffer. */
@@ -1382,7 +1400,7 @@ static int process_rx_data(t38_core_state_t *t, void *user_data, int data_type, 
 static void set_octets_per_data_packet(t38_gateway_state_t *s, int bit_rate)
 {
     int octets;
-    
+
     octets = s->core.ms_per_tx_chunk*bit_rate/(8*1000);
     if (octets < 1)
         octets = 1;
@@ -1593,7 +1611,7 @@ static void non_ecm_put_bit(void *user_data, int bit)
 {
     t38_gateway_state_t *t;
     t38_gateway_to_t38_state_t *s;
-    
+
     if (bit < 0)
     {
         non_ecm_rx_status(user_data, bit);
@@ -1622,7 +1640,7 @@ static void non_ecm_remove_fill_and_put_bit(void *user_data, int bit)
 {
     t38_gateway_state_t *t;
     t38_gateway_to_t38_state_t *s;
-    
+
     if (bit < 0)
     {
         non_ecm_rx_status(user_data, bit);
@@ -1733,7 +1751,7 @@ static void rx_flag_or_abort(hdlc_rx_state_t *t)
     t38_gateway_state_t *s;
     t38_gateway_to_t38_state_t *u;
     int category;
-    
+
     s = (t38_gateway_state_t *) t->frame_user_data;
     u = &s->core.to_t38;
     if ((t->raw_bit_stream & 0x80))
@@ -2078,7 +2096,7 @@ SPAN_DECLARE_NONSTD(int) t38_gateway_tx(t38_gateway_state_t *s, int16_t amp[], i
     int len;
 #if defined(LOG_FAX_AUDIO)
     int required_len;
-    
+
     required_len = max_len;
 #endif
     if ((len = s->audio.modems.tx_handler(s->audio.modems.tx_user_data, amp, max_len)) < max_len)
@@ -2101,7 +2119,7 @@ SPAN_DECLARE_NONSTD(int) t38_gateway_tx(t38_gateway_state_t *s, int16_t amp[], i
     {
         /* Pad to the requested length with silence */
         memset(amp + len, 0, (max_len - len)*sizeof(int16_t));
-        len = max_len;        
+        len = max_len;
     }
     /*endif*/
 #if defined(LOG_FAX_AUDIO)

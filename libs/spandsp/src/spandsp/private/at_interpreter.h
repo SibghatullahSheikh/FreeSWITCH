@@ -80,7 +80,7 @@ struct at_state_s
     int rx_window;
     /*! Value set by +EWIND */
     int tx_window;
-    
+
     int v8bis_signal;
     int v8bis_1st_message;
     int v8bis_2nd_message;
@@ -91,6 +91,8 @@ struct at_state_s
     uint8_t rx_data[256];
     int rx_data_bytes;
 
+    int dte_dce_flow_control;
+    int dce_dte_flow_control;
     int display_call_info;
     int call_info_displayed;
     at_call_id_t *call_id;

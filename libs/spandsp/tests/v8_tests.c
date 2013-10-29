@@ -38,10 +38,6 @@
 #include <string.h>
 #include <sndfile.h>
 
-//#if defined(WITH_SPANDSP_INTERNALS)
-#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
-
 #include "spandsp.h"
 #include "spandsp-sim.h"
 
@@ -81,7 +77,7 @@ static int select_modulation(int mask)
 static void handler(void *user_data, v8_parms_t *result)
 {
     const char *s;
-    
+
     s = (const char *) user_data;
 
     printf("%s ", s);
@@ -366,7 +362,7 @@ static int non_v8_calls_v8_tests(SNDFILE *outhandle)
         for (i = 0;  i < samples;  i++)
             out_amp[2*i] = amp[i];
         /*endfor*/
-    
+
         samples = v8_tx(v8_answerer, amp, SAMPLES_PER_CHUNK);
         if (samples < SAMPLES_PER_CHUNK)
         {
@@ -476,7 +472,7 @@ static int v8_calls_non_v8_tests(SNDFILE *outhandle)
         for (i = 0;  i < samples;  i++)
             out_amp[2*i] = amp[i];
         /*endfor*/
-    
+
         samples = modem_connect_tones_tx(non_v8_answerer_tx, amp, SAMPLES_PER_CHUNK);
         if (samples < SAMPLES_PER_CHUNK)
         {

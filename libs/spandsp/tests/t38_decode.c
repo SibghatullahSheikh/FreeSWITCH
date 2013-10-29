@@ -25,9 +25,6 @@
 
 /*! \file */
 
-/* Enable the following definition to enable direct probing into the FAX structures */
-//#define WITH_SPANDSP_INTERNALS
-
 #if defined(HAVE_CONFIG_H)
 #include "config.h"
 #endif
@@ -43,10 +40,6 @@
 #if !defined(_WIN32)
 #include <unistd.h>
 #endif
-
-//#if defined(WITH_SPANDSP_INTERNALS)
-#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
 
 #include "udptl.h"
 #include "spandsp.h"
@@ -231,7 +224,7 @@ static int t38_gateway_timing_update(void *user_data, struct timeval *ts)
         }
         if (t38_gateway_rx(t38_gateway_state, t30_amp, t30_len))
             break;
-    
+
         t38_len = t38_gateway_tx(t38_gateway_state, t38_amp, partial);
         if (!use_transmit_on_idle)
         {
@@ -302,7 +295,7 @@ static uint32_t parse_inet_addr(const char *s)
     uint32_t b;
     uint32_t c;
     uint32_t d;
-    
+
     a = 0;
     b = 0;
     c = 0;
@@ -447,7 +440,7 @@ int main(int argc, char *argv[])
         t30_set_phase_d_handler(t30, phase_d_handler, (void *) (intptr_t) 'A');
         t30_set_phase_e_handler(t30, phase_e_handler, (void *) (intptr_t) 'A');
         t30_set_ecm_capability(t30, use_ecm);
-        t30_set_supported_compressions(t30, T30_SUPPORT_T4_1D_COMPRESSION | T30_SUPPORT_T4_2D_COMPRESSION | T30_SUPPORT_T6_COMPRESSION | T30_SUPPORT_T85_COMPRESSION);
+        t30_set_supported_compressions(t30, T4_SUPPORT_COMPRESSION_T4_1D | T4_SUPPORT_COMPRESSION_T4_2D | T4_SUPPORT_COMPRESSION_T6 | T4_SUPPORT_COMPRESSION_T85);
 
         if (pcap_scan_pkts(input_file_name, src_addr, src_port, dest_addr, dest_port, t38_terminal_timing_update, process_packet, NULL))
             exit(2);
@@ -504,7 +497,7 @@ int main(int argc, char *argv[])
         t30_set_phase_d_handler(t30, phase_d_handler, (void *) (intptr_t) 'B');
         t30_set_phase_e_handler(t30, phase_e_handler, (void *) (intptr_t) 'B');
         t30_set_ecm_capability(t30, use_ecm);
-        t30_set_supported_compressions(t30, T30_SUPPORT_T4_1D_COMPRESSION | T30_SUPPORT_T4_2D_COMPRESSION | T30_SUPPORT_T6_COMPRESSION);
+        t30_set_supported_compressions(t30, T4_SUPPORT_COMPRESSION_T4_1D | T4_SUPPORT_COMPRESSION_T4_2D | T4_SUPPORT_COMPRESSION_T6);
 
         logging = fax_get_logging_state(fax_state);
         span_log_set_level(logging, SPAN_LOG_DEBUG | SPAN_LOG_SHOW_TAG | SPAN_LOG_SHOW_SAMPLE_TIME);

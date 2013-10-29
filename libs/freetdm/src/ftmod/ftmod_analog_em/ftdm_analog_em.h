@@ -51,6 +51,8 @@ struct ftdm_analog_data {
 	uint32_t flags;
 	uint32_t max_dialstr;
 	uint32_t digit_timeout;
+	uint32_t dial_timeout;
+	ftdm_bool_t answer_supervision;
 };
 
 static void *ftdm_analog_em_run(ftdm_thread_t *me, void *obj);
@@ -66,5 +68,5 @@ typedef struct ftdm_analog_data ftdm_analog_em_data_t;
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

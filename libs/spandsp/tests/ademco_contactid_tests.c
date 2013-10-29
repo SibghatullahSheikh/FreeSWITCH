@@ -29,9 +29,6 @@
 \section ademco_contactid_tests_page_sec_2 How does it work?
 */
 
-/* Enable the following definition to enable direct probing into the FAX structures */
-//#define WITH_SPANDSP_INTERNALS
-
 #if defined(HAVE_CONFIG_H)
 #include "config.h"
 #endif
@@ -42,10 +39,6 @@
 #include <string.h>
 #include <assert.h>
 #include <sndfile.h>
-
-//#if defined(WITH_SPANDSP_INTERNALS)
-//#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
 
 #include "spandsp.h"
 #include "spandsp-sim.h"
@@ -247,7 +240,7 @@ static int end_to_end_tests(void)
         samples = ademco_contactid_receiver_tx(receiver, amp, SAMPLES_PER_CHUNK);
         for (j = samples;  j < SAMPLES_PER_CHUNK;  j++)
             amp[j] = 0;
-        
+
         /* We add AWGN and codec impairments to the signal, to stress the tone detector. */
         codec_munge(munge, amp, SAMPLES_PER_CHUNK);
         for (j = 0;  j < SAMPLES_PER_CHUNK;  j++)

@@ -38,10 +38,6 @@
 #include <time.h>
 #include <sndfile.h>
 
-//#if defined(WITH_SPANDSP_INTERNALS)
-#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
-
 #include "spandsp.h"
 #include "spandsp-sim.h"
 
@@ -83,7 +79,7 @@ int main(int argc, char *argv[])
             break;
         sf_writef_short(outhandle, amp, len);
     }
-    
+
     /* Try a different tone pair */
     tone_gen_descriptor_init(&tone_desc,
                              350,
@@ -215,7 +211,7 @@ int main(int argc, char *argv[])
             break;
         sf_writef_short(outhandle, amp, len);
     }
-    
+
     /* Try an AM modulated tone at maximum modulation level (100%) */
     tone_gen_descriptor_init(&tone_desc,
                              425,
@@ -237,7 +233,7 @@ int main(int argc, char *argv[])
             break;
         sf_writef_short(outhandle, amp, len);
     }
-    
+
     if (sf_close_telephony(outhandle))
     {
         fprintf(stderr, "    Cannot close audio file '%s'\n", OUTPUT_FILE_NAME);

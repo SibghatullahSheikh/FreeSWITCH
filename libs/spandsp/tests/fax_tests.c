@@ -47,9 +47,6 @@ T.30<->T.38<--------------------------UDPTL/RTP-------------------------->T.38<-
 
 */
 
-/* Enable the following definition to enable direct probing into the FAX structures */
-//#define WITH_SPANDSP_INTERNALS
-
 #if defined(HAVE_CONFIG_H)
 #include "config.h"
 #endif
@@ -79,10 +76,6 @@ T.30<->T.38<--------------------------UDPTL/RTP-------------------------->T.38<-
 #if defined(HAVE_LIBXML_XINCLUDE_H)
 #include <libxml/xinclude.h>
 #endif
-
-//#if defined(WITH_SPANDSP_INTERNALS)
-#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
 
 #include "udptl.h"
 #include "spandsp.h"
@@ -350,7 +343,7 @@ static void phase_e_handler(t30_state_t *s, void *user_data, int result)
     int i;
     t30_stats_t t;
     char tag[20];
-    
+
     i = (int) (intptr_t) user_data;
     snprintf(tag, sizeof(tag), "%c: Phase E", i + 'A');
     printf("%c: Phase E handler - (%d) %s\n", i + 'A', result, t30_completion_code_to_str(result));
@@ -370,7 +363,7 @@ static void real_time_frame_handler(t30_state_t *s,
                                     int len)
 {
     int i;
-    
+
     i = (intptr_t) user_data;
     printf("%c: Real time frame handler - %s, %s, length = %d\n",
            i + 'A',
@@ -383,7 +376,7 @@ static void real_time_frame_handler(t30_state_t *s,
 static int document_handler(t30_state_t *s, void *user_data, int event)
 {
     int i;
-    
+
     i = (intptr_t) user_data;
     printf("%c: Document handler - event %d\n", i + 'A', event);
     return FALSE;
@@ -407,7 +400,7 @@ static void real_time_gateway_frame_handler(t38_gateway_state_t *s,
                                             int len)
 {
     int i;
-    
+
     i = (intptr_t) user_data;
     printf("%c: Real time gateway frame handler - %s, %s, length = %d\n",
            i + 'A',
@@ -497,6 +490,7 @@ int main(int argc, char *argv[])
     int noise_level;
     int code_to_look_up;
     int scan_line_time;
+    int colour_enabled;
     t38_stats_t t38_stats;
     t30_stats_t t30_stats;
     logging_state_t *logging;
@@ -535,13 +529,17 @@ int main(int argc, char *argv[])
     scan_line_time = 0;
     decode_file_name = NULL;
     code_to_look_up = -1;
+    colour_enabled = FALSE;
     t38_transport = T38_TRANSPORT_UDPTL;
-    while ((opt = getopt(argc, argv, "c:d:D:efFgH:i:Ilm:M:n:p:s:tT:u:v:z:")) != -1)
+    while ((opt = getopt(argc, argv, "c:Cd:D:efFgH:i:Ilm:M:n:p:s:S:tT:u:v:z:")) != -1)
     {
         switch (opt)
         {
         case 'c':
             code_to_look_up = atoi(optarg);
+            break;
+        case 'C':
+            colour_enabled = TRUE;
             break;
         case 'd':
             decode_file_name = optarg;
@@ -681,7 +679,7 @@ int main(int argc, char *argv[])
         }
     }
     memset(silence, 0, sizeof(silence));
- 
+
     srand48(0x1234567);
     /* Set up the nodes */
     input_wave_handle = NULL;
@@ -846,42 +844,70 @@ int main(int argc, char *argv[])
                                      | T30_SUPPORT_SELECTIVE_POLLING
                                      | T30_SUPPORT_SUB_ADDRESSING);
         t30_set_supported_image_sizes(t30_state[i],
-                                      T30_SUPPORT_US_LETTER_LENGTH
-                                    | T30_SUPPORT_US_LEGAL_LENGTH
-                                    | T30_SUPPORT_UNLIMITED_LENGTH
-                                    | T30_SUPPORT_215MM_WIDTH
-                                    | T30_SUPPORT_255MM_WIDTH
-                                    | T30_SUPPORT_303MM_WIDTH);
-        t30_set_supported_resolutions(t30_state[i],
-                                      T30_SUPPORT_STANDARD_RESOLUTION
-                                    | T30_SUPPORT_FINE_RESOLUTION
-                                    | T30_SUPPORT_SUPERFINE_RESOLUTION
-                                    | T30_SUPPORT_R8_RESOLUTION
-                                    | T30_SUPPORT_R16_RESOLUTION
-                                    | T30_SUPPORT_300_300_RESOLUTION
-                                    | T30_SUPPORT_400_400_RESOLUTION
-                                    | T30_SUPPORT_600_600_RESOLUTION
-                                    | T30_SUPPORT_1200_1200_RESOLUTION
-                                    | T30_SUPPORT_300_600_RESOLUTION
-                                    | T30_SUPPORT_400_800_RESOLUTION
-                                    | T30_SUPPORT_600_1200_RESOLUTION);
-        t30_set_ecm_capability(t30_state[i], use_ecm);
-        if (use_ecm)
+                                      T4_SUPPORT_WIDTH_215MM
+                                    | T4_SUPPORT_WIDTH_255MM
+                                    | T4_SUPPORT_WIDTH_303MM
+                                    | T4_SUPPORT_LENGTH_US_LETTER
+                                    | T4_SUPPORT_LENGTH_US_LEGAL
+                                    | T4_SUPPORT_LENGTH_UNLIMITED);
+#if 1
+        t30_set_supported_bilevel_resolutions(t30_state[i],
+                                              T4_SUPPORT_RESOLUTION_R8_STANDARD
+                                            | T4_SUPPORT_RESOLUTION_R8_FINE
+                                            | T4_SUPPORT_RESOLUTION_R8_SUPERFINE
+                                            | T4_SUPPORT_RESOLUTION_R16_SUPERFINE
+                                            | T4_SUPPORT_RESOLUTION_200_100
+                                            | T4_SUPPORT_RESOLUTION_200_200
+                                            | T4_SUPPORT_RESOLUTION_200_400
+                                            | T4_SUPPORT_RESOLUTION_300_300
+                                            | T4_SUPPORT_RESOLUTION_300_600
+                                            | T4_SUPPORT_RESOLUTION_400_400
+                                            | T4_SUPPORT_RESOLUTION_400_800
+                                            | T4_SUPPORT_RESOLUTION_600_600
+                                            | T4_SUPPORT_RESOLUTION_600_1200
+                                            | T4_SUPPORT_RESOLUTION_1200_1200);
+#elif 0
+        t30_set_supported_bilevel_resolutions(t30_state[i],
+                                              T4_SUPPORT_RESOLUTION_R8_STANDARD
+                                            | T4_SUPPORT_RESOLUTION_R8_FINE
+                                            | T4_SUPPORT_RESOLUTION_R8_SUPERFINE
+                                            | T4_SUPPORT_RESOLUTION_R16_SUPERFINE);
+#else
+        t30_set_supported_bilevel_resolutions(t30_state[i],
+                                              T4_SUPPORT_RESOLUTION_200_100
+                                            | T4_SUPPORT_RESOLUTION_200_200
+                                            | T4_SUPPORT_RESOLUTION_200_400
+                                            | T4_SUPPORT_RESOLUTION_300_300
+                                            | T4_SUPPORT_RESOLUTION_300_600
+                                            | T4_SUPPORT_RESOLUTION_400_400
+                                            | T4_SUPPORT_RESOLUTION_400_800
+                                            | T4_SUPPORT_RESOLUTION_600_600
+                                            | T4_SUPPORT_RESOLUTION_600_1200
+                                            | T4_SUPPORT_RESOLUTION_1200_1200);
+#endif
+        if (colour_enabled)
         {
-            t30_set_supported_compressions(t30_state[i],
-                                           T30_SUPPORT_T4_1D_COMPRESSION
-                                         | T30_SUPPORT_T4_2D_COMPRESSION
-                                         | T30_SUPPORT_T6_COMPRESSION
-                                         | T30_SUPPORT_T81_COMPRESSION
-                                         | T30_SUPPORT_T85_COMPRESSION
-                                         | T30_SUPPORT_T85_L0_COMPRESSION);
+            t30_set_supported_colour_resolutions(t30_state[i],
+                                                 T4_SUPPORT_RESOLUTION_100_100
+                                               | T4_SUPPORT_RESOLUTION_200_200
+                                               | T4_SUPPORT_RESOLUTION_300_300
+                                               | T4_SUPPORT_RESOLUTION_400_400
+                                               | T4_SUPPORT_RESOLUTION_600_600
+                                               | T4_SUPPORT_RESOLUTION_1200_1200);
         }
         else
         {
-            t30_set_supported_compressions(t30_state[i],
-                                           T30_SUPPORT_T4_1D_COMPRESSION
-                                         | T30_SUPPORT_T4_2D_COMPRESSION);
+            t30_set_supported_colour_resolutions(t30_state[i], 0);
         }
+        t30_set_supported_output_compressions(t30_state[i], T4_SUPPORT_COMPRESSION_T4_2D);
+        t30_set_ecm_capability(t30_state[i], use_ecm);
+        t30_set_supported_compressions(t30_state[i],
+                                       T4_SUPPORT_COMPRESSION_T4_1D
+                                     | T4_SUPPORT_COMPRESSION_T4_2D
+                                     | T4_SUPPORT_COMPRESSION_T6
+                                     //| T4_SUPPORT_COMPRESSION_t42_T81
+                                     | T4_SUPPORT_COMPRESSION_T85
+                                     | T4_SUPPORT_COMPRESSION_T85_L0);
         t30_set_minimum_scan_line_time(t30_state[i], scan_line_time);
 
         if (mode[i] == T38_GATEWAY_FAX)
@@ -957,6 +983,10 @@ int main(int argc, char *argv[])
                 logging = fax_get_logging_state(fax_state[i]);
                 span_log_bump_samples(logging, SAMPLES_PER_CHUNK);
 
+#if 0
+                /* Mute the signal */
+                vec_zeroi16(fax_rx_buf[i], SAMPLES_PER_CHUNK);
+#endif
                 fax_rx(fax_state[i], fax_rx_buf[i], SAMPLES_PER_CHUNK);
                 if (!t30_call_active(t30_state[i]))
                 {
@@ -1103,7 +1133,7 @@ int main(int argc, char *argv[])
             exit(2);
         }
     }
-    
+
     /* Check how many pages should have been transferred */
     expected_pages = get_tiff_total_pages(input_tiff_file_name);
     if (end_page >= 0  &&  expected_pages > end_page + 1)

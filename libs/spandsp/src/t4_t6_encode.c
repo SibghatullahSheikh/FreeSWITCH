@@ -31,23 +31,23 @@
  * Copyright (c) 1990-1997 Sam Leffler
  * Copyright (c) 1991-1997 Silicon Graphics, Inc.
  *
- * Permission to use, copy, modify, distribute, and sell this software and 
+ * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
  * that (i) the above copyright notices and this permission notice appear in
  * all copies of the software and related documentation, and (ii) the names of
  * Sam Leffler and Silicon Graphics may not be used in any advertising or
  * publicity relating to the software without the specific, prior written
  * permission of Sam Leffler and Silicon Graphics.
- * 
- * THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND, 
- * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
- * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  
- * 
+ *
+ * THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY
+ * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+ *
  * IN NO EVENT SHALL SAM LEFFLER OR SILICON GRAPHICS BE LIABLE FOR
  * ANY SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND,
  * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER OR NOT ADVISED OF THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF 
- * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE 
+ * WHETHER OR NOT ADVISED OF THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF
+ * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
  * OF THIS SOFTWARE.
  */
 
@@ -57,8 +57,8 @@
 #include "config.h"
 #endif
 
-#include <stdlib.h>
 #include <inttypes.h>
+#include <stdlib.h>
 #include <limits.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -508,7 +508,7 @@ static int row_to_run_lengths(uint32_t list[], const uint8_t row[], int width)
                     x <<= frag;
                     flip ^= 0xFF000000;
                     rem -= frag;
-                }   
+                }
                 /* Save the remainder of the word */
                 span = (i << 3) + 8 - rem;
             }
@@ -573,7 +573,7 @@ static void encode_eol(t4_t6_encode_state_t *s)
     uint32_t code;
     int length;
 
-    if (s->encoding == T4_COMPRESSION_ITU_T4_2D)
+    if (s->encoding == T4_COMPRESSION_T4_2D)
     {
         code = 0x0800 | ((!s->row_is_2d) << 12);
         length = 13;
@@ -589,7 +589,7 @@ static void encode_eol(t4_t6_encode_state_t *s)
         /* We may need to pad the row to a minimum length, unless we are in T.6 mode.
            In T.6 we only come here at the end of the page to add the EOFB marker, which
            is like two 1D EOLs. */
-        if (s->encoding != T4_COMPRESSION_ITU_T6)
+        if (s->encoding != T4_COMPRESSION_T6)
         {
             if (s->row_bits + length < s->min_bits_per_row)
                 put_encoded_bits(s, 0, s->min_bits_per_row - (s->row_bits + length));
@@ -647,7 +647,7 @@ static void encode_2d_row(t4_t6_encode_state_t *s, const uint8_t *row_buf)
     uint32_t *p;
 
     /*
-                                                    b1          b2 
+                                                    b1          b2
             XX  XX  XX  XX  XX  --  --  --  --  --  XX  XX  XX  --  --  --  --  --
             XX  XX  XX  --  --  --  --  --  XX  XX  XX  XX  XX  XX  --  --  --  --
                         a0                  a1                      a2
@@ -657,18 +657,18 @@ static void encode_2d_row(t4_t6_encode_state_t *s, const uint8_t *row_buf)
             This mode is identified when the position of b2 lies to the left of a1. When this mode
             has been coded, a0 is set on the element of the coding line below b2 in preparation for
             the next coding (i.e. on a0').
-            
-                                    b1          b2 
+
+                                    b1          b2
             XX  XX  XX  XX  --  --  XX  XX  XX  --  --  --  --  --
-            XX  XX  --  --  --  --  --  --  --  --  --  --  XX  XX 
+            XX  XX  --  --  --  --  --  --  --  --  --  --  XX  XX
                     a0                          a0'         a1
                                 Pass mode
-                                
+
 
             However, the state where b2 occurs just above a1, as shown in the figure below, is not
             considered as a pass mode.
 
-                                    b1          b2 
+                                    b1          b2
             XX  XX  XX  XX  --  --  XX  XX  XX  --  --  --  --  --
             XX  XX  --  --  --  --  --  --  --  XX  XX  XX  XX  XX
                     a0                          a1
@@ -693,7 +693,7 @@ static void encode_2d_row(t4_t6_encode_state_t *s, const uint8_t *row_buf)
 
                                                             Vertical
                                                             <a1 b1>
-                                                                    b1              b2 
+                                                                    b1              b2
             --  XX  XX  XX  XX  XX  --  --  --  --  --  --  --  --  XX  XX  XX  XX  --  --  --
             --  --  --  --  --  --  --  --  --  --  --  --  XX  XX  XX  XX  XX  XX  XX  --  --
                                     a0                      a1                          a2
@@ -823,14 +823,14 @@ static int encode_row(t4_t6_encode_state_t *s, const uint8_t *row_buf, size_t le
 {
     switch (s->encoding)
     {
-    case T4_COMPRESSION_ITU_T6:
+    case T4_COMPRESSION_T6:
         /* T.6 compression is a trivial step up from T.4 2D, so we just
            throw it in here. T.6 is only used with error correction,
            so it does not need independantly compressed (i.e. 1D) lines
            to recover from data errors. It doesn't need EOLs, either. */
         encode_2d_row(s, row_buf);
         break;
-    case T4_COMPRESSION_ITU_T4_2D:
+    case T4_COMPRESSION_T4_2D:
         encode_eol(s);
         if (s->row_is_2d)
         {
@@ -850,7 +850,7 @@ static int encode_row(t4_t6_encode_state_t *s, const uint8_t *row_buf, size_t le
         }
         break;
     default:
-    case T4_COMPRESSION_ITU_T4_1D:
+    case T4_COMPRESSION_T4_1D:
         encode_eol(s);
         encode_1d_row(s, row_buf);
         break;
@@ -864,7 +864,7 @@ static int finalise_page(t4_t6_encode_state_t *s)
 {
     int i;
 
-    if (s->encoding == T4_COMPRESSION_ITU_T6)
+    if (s->encoding == T4_COMPRESSION_T6)
     {
         /* Attach an EOFB (end of facsimile block == 2 x EOLs) to the end of the page */
         for (i = 0;  i < EOLS_TO_END_T6_TX_PAGE;  i++)
@@ -982,14 +982,16 @@ SPAN_DECLARE(int) t4_t6_encode_set_encoding(t4_t6_encode_state_t *s, int encodin
 {
     switch (encoding)
     {
-    case T4_COMPRESSION_ITU_T6:
-    case T4_COMPRESSION_ITU_T4_2D:
-    case T4_COMPRESSION_ITU_T4_1D:
+    case T4_COMPRESSION_T6:
+        s->min_bits_per_row = 0;
+        /* Fall through */
+    case T4_COMPRESSION_T4_2D:
+    case T4_COMPRESSION_T4_1D:
         s->encoding = encoding;
         /* Set this to the default value for the lowest resolution in the T.4 spec. */
         s->max_rows_to_next_1d_row = 2;
         s->rows_to_next_1d_row = s->max_rows_to_next_1d_row - 1;
-        s->row_is_2d = FALSE;
+        s->row_is_2d = (s->encoding == T4_COMPRESSION_T6);
         return 0;
     }
     return -1;
@@ -998,7 +1000,16 @@ SPAN_DECLARE(int) t4_t6_encode_set_encoding(t4_t6_encode_state_t *s, int encodin
 
 SPAN_DECLARE(void) t4_t6_encode_set_min_bits_per_row(t4_t6_encode_state_t *s, int bits)
 {
-    s->min_bits_per_row = bits;
+    switch (s->encoding)
+    {
+    case T4_COMPRESSION_T6:
+        s->min_bits_per_row = 0;
+        break;
+    case T4_COMPRESSION_T4_2D:
+    case T4_COMPRESSION_T4_1D:
+        s->min_bits_per_row = bits;
+        break;
+    }
 }
 /*- End of function --------------------------------------------------------*/
 
@@ -1056,9 +1067,12 @@ SPAN_DECLARE(void) t4_t6_encode_set_max_2d_rows_per_1d_row(t4_t6_encode_state_t 
     } y_res_table[] =
     {
         {T4_Y_RESOLUTION_STANDARD, 2},
+        {T4_Y_RESOLUTION_100, 2},
         {T4_Y_RESOLUTION_FINE, 4},
+        {T4_Y_RESOLUTION_200, 4},
         {T4_Y_RESOLUTION_300, 6},
         {T4_Y_RESOLUTION_SUPERFINE, 8},
+        {T4_Y_RESOLUTION_400, 8},
         {T4_Y_RESOLUTION_600, 12},
         {T4_Y_RESOLUTION_800, 16},
         {T4_Y_RESOLUTION_1200, 24},
@@ -1088,11 +1102,17 @@ SPAN_DECLARE(void) t4_t6_encode_set_max_2d_rows_per_1d_row(t4_t6_encode_state_t 
 }
 /*- End of function --------------------------------------------------------*/
 
-SPAN_DECLARE(int) t4_t6_encode_restart(t4_t6_encode_state_t *s, int image_width)
+SPAN_DECLARE(logging_state_t *) t4_t6_encode_get_logging_state(t4_t6_encode_state_t *s)
+{
+    return &s->logging;
+}
+/*- End of function --------------------------------------------------------*/
+
+SPAN_DECLARE(int) t4_t6_encode_restart(t4_t6_encode_state_t *s, int image_width, int image_length)
 {
     /* Allow for pages being of different width. */
     t4_t6_encode_set_image_width(s, image_width);
-    s->row_is_2d = (s->encoding == T4_COMPRESSION_ITU_T6);
+    s->row_is_2d = (s->encoding == T4_COMPRESSION_T6);
     s->rows_to_next_1d_row = s->max_rows_to_next_1d_row - 1;
 
     s->tx_bitstream = 0;
@@ -1119,6 +1139,7 @@ SPAN_DECLARE(int) t4_t6_encode_restart(t4_t6_encode_state_t *s, int image_width)
 SPAN_DECLARE(t4_t6_encode_state_t *) t4_t6_encode_init(t4_t6_encode_state_t *s,
                                                        int encoding,
                                                        int image_width,
+                                                       int image_length,
                                                        t4_row_read_handler_t handler,
                                                        void *user_data)
 {
@@ -1136,7 +1157,7 @@ SPAN_DECLARE(t4_t6_encode_state_t *) t4_t6_encode_init(t4_t6_encode_state_t *s,
     s->row_read_user_data = user_data;
 
     s->max_rows_to_next_1d_row = 2;
-    t4_t6_encode_restart(s, image_width);
+    t4_t6_encode_restart(s, image_width, image_length);
 
     return s;
 }

@@ -665,7 +665,7 @@ static FIO_OPEN_FUNCTION(zt_open)
 			}
 		}
 
-		if (zt_globals.eclevel >= 0) {
+		if (1) {
 			int len = zt_globals.eclevel;
 			if (len) {
 				ftdm_log(FTDM_LOG_INFO, "Setting echo cancel to %d taps for %d:%d\n", len, ftdmchan->span_id, ftdmchan->chan_id);
@@ -1034,7 +1034,9 @@ FIO_SPAN_POLL_EVENT_FUNCTION(zt_poll_event)
 	struct pollfd pfds[FTDM_MAX_CHANNELS_SPAN];
 	uint32_t i, j = 0, k = 0;
 	int r;
-	
+
+	ftdm_unused_arg(poll_events);
+
 	for(i = 1; i <= span->chan_count; i++) {
 		memset(&pfds[j], 0, sizeof(pfds[j]));
 		pfds[j].fd = span->channels[i]->sockfd;
@@ -1098,6 +1100,7 @@ static __inline__ int handle_dtmf_event(ftdm_channel_t *fchan, zt_event_t zt_eve
  */
 static __inline__ ftdm_status_t zt_channel_process_event(ftdm_channel_t *fchan, ftdm_oob_event_t *event_id, zt_event_t zt_event_id)
 {
+	ftdm_log_chan(fchan, FTDM_LOG_DEBUG, "Processing zap hardware event %d\n", zt_event_id);
 	switch(zt_event_id) {
 	case ZT_EVENT_RINGEROFF:
 		{
@@ -1132,16 +1135,30 @@ static __inline__ ftdm_status_t zt_channel_process_event(ftdm_channel_t *fchan, 
 		break;
 	case ZT_EVENT_RINGOFFHOOK:
 		{
+			*event_id = FTDM_OOB_NOOP;
 			if (fchan->type == FTDM_CHAN_TYPE_FXS || (fchan->type == FTDM_CHAN_TYPE_EM && fchan->state != FTDM_CHANNEL_STATE_UP)) {
 				if (fchan->type != FTDM_CHAN_TYPE_EM) {
-					/* In E&M we're supposed to set this flag when the tx side goes offhook, not the rx */
+					/* In E&M we're supposed to set this flag only when the local side goes offhook, not the remote */
 					ftdm_set_flag_locked(fchan, FTDM_CHANNEL_OFFHOOK);
 				}
-				*event_id = FTDM_OOB_OFFHOOK;
+
+				/* For E&M let's count the ring count (it seems sometimes we receive RINGOFFHOOK once before the other end
+				 * answers, then another RINGOFFHOOK when the other end answers?? anyways, now we count rings before delivering the
+				 * offhook event ... the E&M signaling code in ftmod_analog_em also polls the RBS bits looking for answer, just to
+				 * be safe and not rely on this event, so even if this event does not arrive, when there is answer supervision
+				 * the analog signaling code should detect the cas persistance pattern and answer */
+				if (fchan->type == FTDM_CHAN_TYPE_EM && ftdm_test_flag(fchan, FTDM_CHANNEL_OUTBOUND)) {
+					fchan->ring_count++;
+					/* perhaps some day we'll make this configurable, but since I am not even sure what the hell is going on
+					 * no point in making a configuration option for something that may not be technically correct */
+					if (fchan->ring_count == 2) {
+						*event_id = FTDM_OOB_OFFHOOK;
+					}
+				} else {
+					*event_id = FTDM_OOB_OFFHOOK;
+				}
 			} else if (fchan->type == FTDM_CHAN_TYPE_FXO) {
 				*event_id = FTDM_OOB_RING_START;
-			} else {
-				*event_id = FTDM_OOB_NOOP;
 			}
 		}
 		break;
@@ -1296,25 +1313,52 @@ FIO_SPAN_NEXT_EVENT_FUNCTION(zt_next_event)
 static FIO_READ_FUNCTION(zt_read)
 {
 	ftdm_ssize_t r = 0;
+	int read_errno = 0;
 	int errs = 0;
 
 	while (errs++ < 30) {
-		if ((r = read(ftdmchan->sockfd, data, *datalen)) > 0) {
+		r = read(ftdmchan->sockfd, data, *datalen);
+		if (r > 0) {
+			/* successful read, bail out now ... */
 			break;
 		}
-		else if (r == 0) {
+
+		/* Timeout ... retry after a bit */
+		if (r == 0) {
 			ftdm_sleep(10);
 			if (errs) errs--;
+			continue;
 		}
-		else {
-			if (errno == EAGAIN || errno == EINTR)
-				continue;
-			if (errno == ELAST)
-				break;
 
-			ftdm_log(FTDM_LOG_ERROR, "read failed: %s\n", strerror(errno));
+		/* This gotta be an error, save errno in case we do printf(), ioctl() or other operations which may reset it */
+		read_errno = errno;
+		if (read_errno == EAGAIN || read_errno == EINTR) {
+			/* Reasonable to retry under those errors */
+			continue;
 		}
+
+		/* When ELAST is returned, it means DAHDI has an out of band event ready and we won't be able to read anything until
+		 * we retrieve the event using an ioctl(), so we try to retrieve it here ... */
+		if (read_errno == ELAST) {
+			zt_event_t zt_event_id = 0;
+			if (ioctl(ftdmchan->sockfd, codes.GETEVENT, &zt_event_id) == -1) {
+				ftdm_log_chan(ftdmchan, FTDM_LOG_ERROR, "Failed retrieving event after ELAST on read: %s\n", strerror(errno));
+				r = -1;
+				break;
+			}
+
+			if (handle_dtmf_event(ftdmchan, zt_event_id)) {
+				/* we should enqueue this event somewhere so it can be retrieved by the user, for now, dropping it to see what it is! */
+				ftdm_log_chan(ftdmchan, FTDM_LOG_WARNING, "Event %d is not dmtf related. Skipping one media read cycle\n", zt_event_id);
+			}
+			ftdm_log_chan_msg(ftdmchan, FTDM_LOG_WARNING, "Skipping one IO read cycle due to events pending in the driver queue\n");
+			break;
+		}
+
+		/* Read error, keep going unless to many errors force us to abort ...*/
+		ftdm_log(FTDM_LOG_ERROR, "IO read failed: %s\n", strerror(read_errno));
 	}
+
 	if (r > 0) {
 		*datalen = r;
 		if (ftdmchan->type == FTDM_CHAN_TYPE_DQ921) {
@@ -1322,7 +1366,7 @@ static FIO_READ_FUNCTION(zt_read)
 		}
 		return FTDM_SUCCESS;
 	}
-	else if (errno == ELAST) {
+	else if (read_errno == ELAST) {
 		return FTDM_SUCCESS;
 	}
 	return r == 0 ? FTDM_TIMEOUT : FTDM_FAIL;
@@ -1472,5 +1516,5 @@ ftdm_module_t ftdm_module = {
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

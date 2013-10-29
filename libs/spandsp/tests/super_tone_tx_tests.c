@@ -54,10 +54,6 @@
 #include <libxml/xinclude.h>
 #endif
 
-//#if defined(WITH_SPANDSP_INTERNALS)
-#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
-
 #include "spandsp.h"
 #include "spandsp-sim.h"
 
@@ -216,7 +212,7 @@ static void get_tone_set(const char *tone_file, const char *set_id)
 #endif
     xmlChar *x;
 
-    ns = NULL;    
+    ns = NULL;
     xmlKeepBlanksDefault(0);
     xmlCleanupParser();
     doc = xmlParseFile(tone_file);

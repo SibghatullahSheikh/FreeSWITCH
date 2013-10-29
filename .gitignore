@@ -36,6 +36,7 @@
 *.xz
 *.bz2
 *.tbz2
+*.deb
 *.swp
 aclocal.m4
 autom4te.cache
@@ -43,6 +44,7 @@ config.cache
 configure.lineno
 config.log
 config.status
+test-driver
 core.*
 TAGS
 *.2010.log
@@ -137,7 +139,7 @@ Release/
 /libs/libcodec2/unittest/Makefile
 /libs/libcodec2/unittest/Makefile.in
 /libs/mpg123-1.13.2/
-
+/libs/spandsp/src/cielab_luts.h
 /scripts/fsxs
 /scripts/gentls_cert
 
@@ -171,6 +173,8 @@ BuildLog.htm
 Win32/
 win32/
 !/libs/win32/
+!/libs/speex/win32/
+!/src/mod/endpoints/mod_gsmopen/gsmlib/gsmlib-1.10-patched-13ubuntu/win32/
 *.suo
 *.sdf
 x64/
@@ -182,3 +186,9 @@ ipch/
 /w32/Setup/obj
 *dSYM*
 /libs/xmlrpc-c/lib/expat/xmltok/nametab.h
+
+/UpgradeLog.*
+/_UpgradeReport_Files/
+*.aps
+/w32/Library/switch_version.inc
+/w32/Setup/Fragments

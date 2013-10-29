@@ -57,10 +57,6 @@
 #include <libxml/xinclude.h>
 #endif
 
-//#if defined(WITH_SPANDSP_INTERNALS)
-#define SPANDSP_EXPOSE_INTERNAL_STRUCTURES
-//#endif
-
 #include "spandsp.h"
 #include "spandsp-sim.h"
 
@@ -103,7 +99,7 @@ static int phase_b_handler(t30_state_t *s, void *user_data, int result)
     int i;
     int status;
     const char *u;
-    
+
     i = (intptr_t) user_data;
     status = T30_ERR_OK;
     if ((u = t30_get_rx_ident(s)))
@@ -260,10 +256,10 @@ static void phase_e_handler(t30_state_t *s, void *user_data, int result)
 {
     int i;
     char tag[20];
-    
+
     i = (intptr_t) user_data;
     snprintf(tag, sizeof(tag), "%c: Phase E", i);
-    printf("%c: Phase E handler on channel %c - (%d) %s\n", i, i, result, t30_completion_code_to_str(result));    
+    printf("%c: Phase E handler on channel %c - (%d) %s\n", i, i, result, t30_completion_code_to_str(result));
     fax_log_final_transfer_statistics(s, tag);
     fax_log_tx_parameters(s, tag);
     fax_log_rx_parameters(s, tag);
@@ -293,7 +289,7 @@ static void t30_real_time_frame_handler(t30_state_t *s,
 static int document_handler(t30_state_t *s, void *user_data, int event)
 {
     int i;
-    
+
     i = (intptr_t) user_data;
     fprintf(stderr, "%d: Document handler on channel %d - event %d\n", i, i, event);
     if (next_tx_file[0])
@@ -390,27 +386,30 @@ static void fax_prepare(void)
                                  | T30_SUPPORT_SELECTIVE_POLLING
                                  | T30_SUPPORT_SUB_ADDRESSING);
     t30_set_supported_image_sizes(t30,
-                                  T30_SUPPORT_US_LETTER_LENGTH
-                                | T30_SUPPORT_US_LEGAL_LENGTH
-                                | T30_SUPPORT_UNLIMITED_LENGTH
-                                | T30_SUPPORT_215MM_WIDTH
-                                | T30_SUPPORT_255MM_WIDTH
-                                | T30_SUPPORT_303MM_WIDTH);
-    t30_set_supported_resolutions(t30,
-                                  T30_SUPPORT_STANDARD_RESOLUTION
-                                | T30_SUPPORT_FINE_RESOLUTION
-                                | T30_SUPPORT_SUPERFINE_RESOLUTION
-                                | T30_SUPPORT_R8_RESOLUTION
-                                | T30_SUPPORT_R16_RESOLUTION
-                                | T30_SUPPORT_300_300_RESOLUTION
-                                | T30_SUPPORT_400_400_RESOLUTION
-                                | T30_SUPPORT_600_600_RESOLUTION
-                                | T30_SUPPORT_1200_1200_RESOLUTION
-                                | T30_SUPPORT_300_600_RESOLUTION
-                                | T30_SUPPORT_400_800_RESOLUTION
-                                | T30_SUPPORT_600_1200_RESOLUTION);
+                                  T4_SUPPORT_WIDTH_215MM
+                                | T4_SUPPORT_WIDTH_255MM
+                                | T4_SUPPORT_WIDTH_303MM
+                                | T4_SUPPORT_LENGTH_US_LETTER
+                                | T4_SUPPORT_LENGTH_US_LEGAL
+                                | T4_SUPPORT_LENGTH_UNLIMITED);
+    t30_set_supported_bilevel_resolutions(t30,
+                                          T4_SUPPORT_RESOLUTION_R8_STANDARD
+                                        | T4_SUPPORT_RESOLUTION_R8_FINE
+                                        | T4_SUPPORT_RESOLUTION_R8_SUPERFINE
+                                        | T4_SUPPORT_RESOLUTION_R16_SUPERFINE
+                                        | T4_SUPPORT_RESOLUTION_200_100
+                                        | T4_SUPPORT_RESOLUTION_200_200
+                                        | T4_SUPPORT_RESOLUTION_200_400
+                                        | T4_SUPPORT_RESOLUTION_300_300
+                                        | T4_SUPPORT_RESOLUTION_300_600
+                                        | T4_SUPPORT_RESOLUTION_400_400
+                                        | T4_SUPPORT_RESOLUTION_400_800
+                                        | T4_SUPPORT_RESOLUTION_600_600
+                                        | T4_SUPPORT_RESOLUTION_600_1200
+                                        | T4_SUPPORT_RESOLUTION_1200_1200);
+    t30_set_supported_colour_resolutions(t30, 0);
     t30_set_supported_modems(t30, T30_SUPPORT_V27TER | T30_SUPPORT_V29 | T30_SUPPORT_V17);
-    t30_set_supported_compressions(t30, T30_SUPPORT_T4_1D_COMPRESSION | T30_SUPPORT_T4_2D_COMPRESSION | T30_SUPPORT_T6_COMPRESSION);
+    t30_set_supported_compressions(t30, T4_SUPPORT_COMPRESSION_T4_1D | T4_SUPPORT_COMPRESSION_T4_2D | T4_SUPPORT_COMPRESSION_T6);
     t30_set_phase_b_handler(t30, phase_b_handler, (void *) (intptr_t) 'A');
     t30_set_phase_d_handler(t30, phase_d_handler, (void *) (intptr_t) 'A');
     t30_set_phase_e_handler(t30, phase_e_handler, (void *) (intptr_t) 'A');
@@ -502,7 +501,7 @@ static int string_to_msg(uint8_t msg[], uint8_t mask[], const char buf[])
 static void string_test2(const uint8_t msg[], int len)
 {
     int i;
-    
+
     if (len > 0)
     {
         for (i = 0;  i < len - 1;  i++)
@@ -518,7 +517,7 @@ static void string_test3(const char buf[])
     uint8_t mask[1000];
     int len;
     int i;
-    
+
     len = string_to_msg(msg, mask, buf);
     printf("Len = %d: ", len);
     string_test2(msg, abs(len));
@@ -675,7 +674,7 @@ static int next_step(faxtester_state_t *s)
     s->cur = s->cur->next;
 
     span_log(&s->logging,
-             SPAN_LOG_FLOW, 
+             SPAN_LOG_FLOW,
              "Dir - %s, type - %s, modem - %s, value - %s, timeout - %s, tag - %s\n",
              (dir)  ?  (const char *) dir  :  "",
              (type)  ?  (const char *) type  :  "",
@@ -883,7 +882,7 @@ static int next_step(faxtester_state_t *s)
             t30 = fax_get_t30_state(fax);
             t30_set_rx_file(t30, output_tiff_file_name, -1);
             /* Avoid libtiff 3.8.2 and earlier bug on complex 2D lines. */
-            t30_set_rx_encoding(t30, T4_COMPRESSION_ITU_T4_1D);
+            t30_set_supported_output_compressions(t30, T4_COMPRESSION_T4_1D);
             if (value)
             {
                 sprintf(path, "%s/%s", image_path, (const char *) value);
@@ -898,7 +897,7 @@ static int next_step(faxtester_state_t *s)
             next_tx_file[0] = '\0';
             t30 = fax_get_t30_state(fax);
             /* Avoid libtiff 3.8.2 and earlier bug on complex 2D lines. */
-            t30_set_rx_encoding(t30, T4_COMPRESSION_ITU_T4_1D);
+            t30_set_supported_output_compressions(t30, T4_COMPRESSION_T4_1D);
             if (value)
             {
                 sprintf(path, "%s/%s", image_path, (const char *) value);
@@ -973,13 +972,13 @@ static int next_step(faxtester_state_t *s)
                 exit(2);
             }
             t4_tx_set_header_info(&t4_tx_state, NULL);
-            compression_type = T4_COMPRESSION_ITU_T4_1D;
+            compression_type = T4_COMPRESSION_T4_1D;
             if (compression)
             {
                 if (strcasecmp((const char *) compression, "T.4 2D") == 0)
-                    compression_type = T4_COMPRESSION_ITU_T4_2D;
+                    compression_type = T4_COMPRESSION_T4_2D;
                 else if (strcasecmp((const char *) compression, "T.6") == 0)
-                    compression_type = T4_COMPRESSION_ITU_T6;
+                    compression_type = T4_COMPRESSION_T6;
             }
             t4_tx_set_tx_encoding(&t4_tx_state, compression_type);
             t4_tx_set_min_bits_per_row(&t4_tx_state, min_row_bits);
@@ -1013,13 +1012,13 @@ static int next_step(faxtester_state_t *s)
                 exit(2);
             }
             t4_tx_set_header_info(&t4_tx_state, NULL);
-            compression_type = T4_COMPRESSION_ITU_T4_1D;
+            compression_type = T4_COMPRESSION_T4_1D;
             if (compression)
             {
                 if (strcasecmp((const char *) compression, "T.4 2D") == 0)
-                    compression_type = T4_COMPRESSION_ITU_T4_2D;
+                    compression_type = T4_COMPRESSION_T4_2D;
                 else if (strcasecmp((const char *) compression, "T.6") == 0)
-                    compression_type = T4_COMPRESSION_ITU_T6;
+                    compression_type = T4_COMPRESSION_T6;
             }
             t4_tx_set_tx_encoding(&t4_tx_state, compression_type);
             t4_tx_set_min_bits_per_row(&t4_tx_state, min_row_bits);
@@ -1115,7 +1114,7 @@ static void exchange(faxtester_state_t *s)
         span_log_bump_samples(logging, len);
 
         span_log_bump_samples(&s->logging, len);
-                
+
         len = faxtester_tx(s, amp, SAMPLES_PER_CHUNK);
         if (fax_rx(fax, amp, len))
             break;
@@ -1211,7 +1210,7 @@ static int get_test_set(faxtester_state_t *s, const char *test_file, const char 
     xmlNodePtr cur;
     xmlValidCtxt valid;
 
-    ns = NULL;    
+    ns = NULL;
     xmlKeepBlanksDefault(0);
     xmlCleanupParser();
     if ((doc = xmlParseFile(test_file)) == NULL)

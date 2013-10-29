@@ -86,8 +86,10 @@ SWITCH_BEGIN_EXTERN_C
 #define __FUNCTION__ ""
 #endif
 #endif
+#ifndef __cplusplus
 #undef inline
 #define inline __inline
+#endif
 #if !defined(_STDINT) && !defined(uint32_t)
 typedef unsigned __int8 uint8_t;
 typedef unsigned __int16 uint16_t;
@@ -265,6 +267,11 @@ typedef intptr_t switch_ssize_t;
 #endif
 #endif
 
+
+#if UINTPTR_MAX == 0xffffffffffffffff
+#define FS_64BIT 1
+#endif
+
 #endif
 
 #define SWITCH_TIME_T_FMT SWITCH_INT64_T_FMT
@@ -355,5 +362,5 @@ SWITCH_END_EXTERN_C
  * c-basic-offset:4
  * End:
  * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
  */

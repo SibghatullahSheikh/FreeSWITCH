@@ -29,7 +29,7 @@
     This program generates an A4 sized FAX image of a fine checkerboard. This doesn't
     compress well, so it results in a rather large file for a single page. This is
     good for testing the handling of extreme pages.
-    
+
     Note that due to a bug in FAX image handling, versions of libtiff up to 3.8.2 fail
     to handle this complex image properly, if 2-D compression is used. The bug should
     be fixed in CVS at the time of writing, and so should be fixed in released versions
@@ -93,10 +93,8 @@ int main(int argc, char *argv[])
     /* Prepare the directory entry fully before writing the image, or libtiff complains */
     TIFFSetField(tiff_file, TIFFTAG_COMPRESSION, output_compression);
     if (output_compression == COMPRESSION_CCITT_T4)
-    {
         TIFFSetField(tiff_file, TIFFTAG_T4OPTIONS, output_t4_options);
-        TIFFSetField(tiff_file, TIFFTAG_FAXMODE, FAXMODE_CLASSF);
-    }
+    TIFFSetField(tiff_file, TIFFTAG_FAXMODE, FAXMODE_CLASSF);
     TIFFSetField(tiff_file, TIFFTAG_IMAGEWIDTH, image_width);
     TIFFSetField(tiff_file, TIFFTAG_BITSPERSAMPLE, 1);
     TIFFSetField(tiff_file, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
